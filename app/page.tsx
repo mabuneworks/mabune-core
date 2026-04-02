@@ -52,10 +52,12 @@ const [history, setHistory] = useState<any[]>([]);
   }, []);
   const calculateDeviation = () => {
     let total = 0;
-    const scoreItems = ["肩上", "肩内旋左", "肩内旋右", "ウエスト・お尻", "AS", "大転子", "肘比率", "肩", "耳", "顔"]as const;
-    scoreItems.forEach(item => {
-      const data = examData[item];
+    const scoreItems = ["肩上", "肩内旋左", "肩内旋右", "ウエスト・お尻", "AS", "大転子", "肘比率", "肩", "耳", "顔"] as const;
+    scoreItems.forEach((item) => {
+      const data = (examData as any)[item];
       if (typeof data === 'number') {
+        total += data;
+      } else if (data && typeof data.score === 'number') {
         total += data;
       } else if (data && typeof data.score === 'number') {
         total += data.score;
