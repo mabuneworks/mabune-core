@@ -2,15 +2,14 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { saveRecord, getRecords } from './actions';
-// === 設定: データ構造 ===
 
+// === 設定: データ構造 ===
 const SCORE_OPTIONS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 const SIDE_OPTIONS = ["左", "右"];
 const POS_VERTICAL_OPTIONS = ["上", "中", "下"];
 const FACE_ALIGNMENTS = ["捻れ", "傾き", "スライド"];
 
 // === 状態管理の初期値 ===
-
 const initialScores = {
   "肩上": { side: "", score: 3.0 },
   "肩捻じれ": { side: "" }, 
@@ -37,8 +36,9 @@ const MOCK_HISTORY = [
   { date: "5回目 (2025-02-15)", score: "71.0", items: { "顔": 3.5, "AS": 3.5, "ウエスト・お尻": 3.0 } },
   { date: "10回目 (今日)", score: "???", items: { "顔": 3.0, "AS": 3.0, "ウエスト・お尻": 3.0 } },
 ];
+
 export default function Home() {
-const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
+  const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
   const [examData, setExamData] = useState(initialScores);
   const [extraExamData, setExtraExamData] = useState(initialExtraExams);
   const [history, setHistory] = useState<any[]>([]);
@@ -120,6 +120,7 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-8">
+        {/* 基本情報 */}
         <section className="grid grid-cols-2 gap-4 text-sm bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
           <div>
             <label className="text-slate-500 block mb-1">受診日</label>
@@ -131,6 +132,7 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
           </div>
         </section>
 
+        {/* 診察フロー */}
         <section className="space-y-6">
           <h2 className="text-xs font-bold text-blue-600 tracking-widest uppercase mb-4">冨田式 診察フロー</h2>
           {[
@@ -174,6 +176,7 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
           })}
         </section>
 
+        {/* 追加検査 */}
         <section className="space-y-6">
           <h2 className="text-xs font-bold text-slate-600 tracking-widest uppercase mb-4">追加検査項目</h2>
           {[
@@ -207,51 +210,57 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
           })}
         </section>
 
-        <section className="space-y-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <h2 className="text-sm font-bold text-blue-700 tracking-widest uppercase mb-2">Progress & Media (倉庫予定地)</h2>
-          <div className="overflow-x-auto">
-            <h3 className="text-base font-bold text-slate-900 mb-3">点数履歴 (見本)</h3>
-            <table className="w-full text-xs text-left">
+        {/* 履歴セクション（修正：全項目表示対応） */}
+        <div className="mt-12 bg-white/80 backdrop-blur-md p-6 rounded-3xl shadow-xl border border-white/50 mb-20">
+          <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
+            <span>📜</span> 施術履歴（全項目）
+          </h2>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
-                <tr className="text-slate-500 border-b border-slate-200 tracking-tight">
-                  <th className="py-2 px-1">受診回数</th>
-                  <th className="py-2 px-1">偏差値</th>
-                  <th className="py-2 px-1">顔</th>
-                  <th className="py-2 px-1">AS</th>
-                  <th className="py-2 px-1">ウエスト</th>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="py-3 px-3 text-slate-500 font-medium text-xs">日時 / 名前</th>
+                  <th className="py-3 px-3 text-slate-500 font-medium text-xs">回数</th>
+                  <th className="py-3 px-3 text-blue-600 font-bold text-xs">肩上</th>
+                  <th className="py-3 px-3 text-slate-500 font-medium text-xs">捻じれ</th>
+                  <th className="py-3 px-3 text-blue-600 font-bold text-xs">内旋L/R</th>
+                  <th className="py-3 px-3 text-green-600 font-bold text-xs">ウエスト</th>
+                  <th className="py-3 px-3 text-purple-600 font-bold text-xs">AS</th>
+                  <th className="py-3 px-3 text-slate-500 font-medium text-xs">大転子</th>
+                  <th className="py-3 px-3 text-slate-500 font-medium text-xs">肘/肩/耳</th>
+                  <th className="py-3 px-3 text-pink-600 font-bold text-xs">顔</th>
                 </tr>
               </thead>
               <tbody>
-                {MOCK_HISTORY.map(h => (
-                  <tr key={h.date} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="py-2 px-1 font-medium">{h.date}</td>
-                    <td className="py-2 px-1 font-black text-blue-600 text-sm">{h.score}</td>
-                    <td className="py-2 px-1">{h.items["顔"] ? h.items["顔"].toFixed(1) : "-"}</td>
-                    <td className="py-2 px-1">{h.items["AS"] ? h.items["AS"].toFixed(1) : "-"}</td>
-                    <td className="py-2 px-1">{h.items["ウエスト・お尻"] ? h.items["ウエスト・お尻"].toFixed(1) : "-"}</td>
+                {history.map((rec) => (
+                  <tr key={rec.id} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors">
+                    <td className="py-3 px-3">
+                      <div className="text-[10px] text-slate-400">{new Date(rec.date).toLocaleDateString()}</div>
+                      <div className="font-bold text-slate-800 text-sm">{rec.patient.name}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-600 text-xs">{rec.visitCount}回</td>
+                    <td className="py-3 px-3 text-blue-600 font-mono font-bold">{rec.scoreShoulderUp?.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-slate-500 text-xs">{rec.scoreShoulderTwist}</td>
+                    <td className="py-3 px-3 font-mono text-xs text-blue-500">
+                      {rec.scoreShoulderInternalLeft?.toFixed(1)} / {rec.scoreShoulderInternalRight?.toFixed(1)}
+                    </td>
+                    <td className="py-3 px-3 text-green-600 font-mono font-bold">{rec.scoreWaistHip?.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-purple-600 font-mono font-bold">{rec.scoreAS?.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-slate-600 font-mono">{rec.scoreGreaterTrochanter?.toFixed(1)}</td>
+                    <td className="py-3 px-3 text-slate-400 text-[10px]">
+                      {rec.scoreElbowRatio?.toFixed(1)} / {rec.scoreShoulder?.toFixed(1)} / {rec.scoreEar?.toFixed(1)}
+                    </td>
+                    <td className="py-3 px-3 text-pink-600 font-mono font-bold">{rec.scoreFace?.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <div className="mt-8 border-t border-slate-100 pt-6">
-            <h3 className="text-base font-bold text-slate-900 mb-4">写真経過 (見本: 顔のアップ)</h3>
-            <div className="grid grid-cols-3 gap-3">
-              {[MOCK_HISTORY[0], MOCK_HISTORY[1], MOCK_HISTORY[2]].map((h, index) => (
-                <div key={h.date} className="text-center">
-                  <div className="w-full aspect-[3/4] bg-slate-100 rounded-xl flex flex-col items-center justify-center border border-slate-200 p-2 shadow-inner">
-                    <span className="text-slate-400 font-black text-5xl">{h.items["顔"] ? h.items["顔"].toFixed(1) : "?"}</span>
-                    <span className="text-[10px] text-slate-500 mt-2 font-mono">Photo {index + 1}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 font-medium">{index === 2 ? "今回" : `${index + 1}回目`}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+          <p className="mt-4 text-[10px] text-slate-400 text-center italic">※ 表を左右にスワイプして全項目を確認できます</p>
+        </div>
       </main>
 
+      {/* フッター */}
       <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-6 shadow-2xl rounded-t-3xl z-20">
         <div className="max-w-md mx-auto flex justify-between items-center">
           <div>
@@ -259,58 +268,25 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
             <p className="text-5xl font-black text-blue-400 tracking-tighter">{calculateDeviation().toFixed(1)}</p>
           </div>
           <button 
-  onClick={async () => {
-    const result = await saveRecord({
-      name: basicInfo.name,
-      count: basicInfo.count,
-      examData: examData,
-      extraExamData: extraExamData
-    });
-    if (result.success) {
-      alert("金庫に保存しました！");
-    const newData = await getRecords(); 
-      setHistory(newData);}
-  }}
-  className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-lg"
->
-  カルテを保存
-</button>
+            onClick={async () => {
+              const result = await saveRecord({
+                name: basicInfo.name,
+                count: basicInfo.count,
+                examData: examData,
+                extraExamData: extraExamData
+              });
+              if (result.success) {
+                alert("金庫に保存しました！");
+                const newData = await getRecords(); 
+                setHistory(newData);
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-lg"
+          >
+            カルテを保存
+          </button>
         </div>
       </footer>
-    <div className="mt-12 bg-white/80 backdrop-blur-md p-8 rounded-3xl shadow-xl border border-white/50">
-  <h2 className="text-2xl font-bold mb-6 text-slate-800 flex items-center gap-2">
-    <span>📜</span> 施術履歴（最新10件）
-  </h2>
-  <div className="overflow-x-auto">
-    <table className="w-full text-left border-collapse">
-      <thead>
-        <tr className="border-b border-slate-200">
-          <th className="py-3 px-4 text-slate-500 font-medium">日時</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">お名前</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">回数</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">肩上</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">肩捻じれ</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">AS</th>
-          <th className="py-3 px-4 text-slate-500 font-medium">顔</th>
-        </tr>
-      </thead>
-      <tbody>
-        {history.map((rec) => (
-          <tr key={rec.id} className="border-b border-slate-100">
-            <td className="py-4 px-4 text-slate-600">{new Date(rec.date).toLocaleDateString()}</td>
-           
-            <td className="py-4 px-4 font-bold text-slate-800">{rec.patient.name}</td>
-            <td className="py-4 px-4 text-slate-600">{rec.visitCount}回目</td>
-            <td className="py-4 px-4 text-blue-600 font-mono">{rec.scoreShoulderUp?.toFixed(1)}</td>
-             <td className="py-4 px-4 text-slate-600">{rec.scoreShoulderTwist}</td>
-            <td className="py-4 px-4 text-purple-600 font-mono">{rec.scoreAS?.toFixed(1)}</td>
-            <td className="py-4 px-4 text-pink-600 font-mono">{rec.scoreFace?.toFixed(1)}</td>
-          </tr>
-        ))}
-</tbody>
-    </table>
-  </div>
-</div>
-</div>
-);
+    </div>
+  );
 }
