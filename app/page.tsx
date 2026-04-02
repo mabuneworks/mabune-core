@@ -314,3 +314,4 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
     
     </div>
   );
+ 
