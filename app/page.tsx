@@ -37,7 +37,7 @@ const MOCK_HISTORY = [
   { date: "5回目 (2025-02-15)", score: "71.0", items: { "顔": 3.5, "AS": 3.5, "ウエスト・お尻": 3.0 } },
   { date: "10回目 (今日)", score: "???", items: { "顔": 3.0, "AS": 3.0, "ウエスト・お尻": 3.0 } },
 ];
-
+export default function Home() {
 const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
   const [examData, setExamData] = useState(initialScores);
   const [extraExamData, setExtraExamData] = useState(initialExtraExams);
@@ -307,11 +307,10 @@ const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
             <td className="py-4 px-4 text-pink-600 font-mono">{rec.scoreFace?.toFixed(1)}</td>
           </tr>
         ))}
-      </tbody>
+</tbody>
     </table>
   </div>
 </div>
-    
-    </div>
-  );
- 
+</div>
+);
+}
