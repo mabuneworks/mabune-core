@@ -31,12 +31,6 @@ const initialExtraExams = {
   "大腿骨内旋": { side: "", diffCm: 0 },
 };
 
-const MOCK_HISTORY = [
-  { date: "1回目 (2025-01-10)", score: "82.5", items: { "顔": 4.5, "AS": 4.0, "ウエスト・お尻": 3.5 } },
-  { date: "5回目 (2025-02-15)", score: "71.0", items: { "顔": 3.5, "AS": 3.5, "ウエスト・お尻": 3.0 } },
-  { date: "10回目 (今日)", score: "???", items: { "顔": 3.0, "AS": 3.0, "ウエスト・お尻": 3.0 } },
-];
-
 export default function Home() {
   const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
   const [examData, setExamData] = useState(initialScores);
@@ -120,6 +114,7 @@ export default function Home() {
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-8">
+        {/* 基本情報 */}
         <section className="grid grid-cols-2 gap-4 text-sm bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
           <div>
             <label className="text-slate-500 block mb-1">受診日</label>
@@ -131,6 +126,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* 診察フロー */}
         <section className="space-y-6">
           <h2 className="text-xs font-bold text-blue-600 tracking-widest uppercase mb-4">冨田式 診察フロー</h2>
           {[
@@ -174,6 +170,7 @@ export default function Home() {
           })}
         </section>
 
+        {/* 追加検査 */}
         <section className="space-y-6">
           <h2 className="text-xs font-bold text-slate-600 tracking-widest uppercase mb-4">追加検査項目</h2>
           {[
@@ -207,7 +204,7 @@ export default function Home() {
           })}
         </section>
 
-        {/* 履歴セクション（再修正：全項目を個別に表示） */}
+        {/* 施術履歴：全11項目を個別に表示（actions.tsのラベルと完全一致版） */}
         <div className="mt-12 bg-white/80 backdrop-blur-md p-6 rounded-3xl shadow-xl border border-white/50 mb-20">
           <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
             <span>📜</span> 施術履歴（全項目を単独表示）
@@ -240,18 +237,18 @@ export default function Home() {
                     </td>
                     <td className="py-3 px-3 text-slate-500 text-xs">{rec.visitCount}回</td>
                     
-                    {/* 数字の表示部分。DBのプロパティ名と、予備として日本語キーも確認 */}
-                    <td className="py-3 px-2 text-blue-600 font-mono font-bold text-xs">{(rec.scoreShoulderUp ?? rec["肩上"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-400 text-[10px]">{rec.scoreShoulderTwist ?? rec["肩捻じれ"]}</td>
-                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{(rec.scoreShoulderInternalLeft ?? rec["肩内旋左"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{(rec.scoreShoulderInternalRight ?? rec["肩内旋右"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-green-600 font-mono font-bold text-xs">{(rec.scoreWaistHip ?? rec["ウエスト・お尻"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-purple-600 font-mono font-bold text-xs">{(rec.scoreAS ?? rec["AS"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{(rec.scoreGreaterTrochanter ?? rec["大転子"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{(rec.scoreElbowRatio ?? rec["肘比率"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{(rec.scoreShoulder ?? rec["肩"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{(rec.scoreEar ?? rec["耳"])?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-pink-600 font-mono font-bold text-xs">{(rec.scoreFace ?? rec["顔"])?.toFixed(1)}</td>
+                    {/* 数字の表示部分：actions.tsで指定された名前（scoreShoulderInLなど）に修正しました */}
+                    <td className="py-3 px-2 text-blue-600 font-mono font-bold text-xs">{rec.scoreShoulderUp?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-slate-400 text-[10px]">{rec.scoreShoulderTwist}</td>
+                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{rec.scoreShoulderInL?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{rec.scoreShoulderInR?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-green-600 font-mono font-bold text-xs">{rec.scoreWaistHip?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-purple-600 font-mono font-bold text-xs">{rec.scoreAS?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreGreaterTro?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreElbowRatio?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreShoulder?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreEar?.toFixed(1)}</td>
+                    <td className="py-3 px-2 text-pink-600 font-mono font-bold text-xs">{rec.scoreFace?.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -261,6 +258,7 @@ export default function Home() {
         </div>
       </main>
 
+      {/* フッター */}
       <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-6 shadow-2xl rounded-t-3xl z-20">
         <div className="max-w-md mx-auto flex justify-between items-center">
           <div>
