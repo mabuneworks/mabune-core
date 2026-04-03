@@ -3,13 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { saveRecord, getRecords } from './actions';
 
-// === ボディマップ用キャンバス（新・骨格人体図背景付き） ===
+// === ボディマップ用キャンバス（内部画像 body-map.png を使用） ===
 const BodyMapCanvas = ({ onSave }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   
-  // 生成された上品な人体図のURL
-  const BODY_MAP_URL = "https://r.jina.ai/i/6f937d53086940be8766107380436892";
+  // 自分の public フォルダ内の画像を見に行きます
+  const BODY_MAP_PATH = "/body-map.png";
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -61,13 +61,15 @@ const BodyMapCanvas = ({ onSave }) => {
 
   return (
     <div className="relative border-2 border-slate-200 rounded-[2rem] bg-white overflow-hidden shadow-sm aspect-[16/9]">
-      {/* 背景：骨格人体図 */}
+      {/* 背景：自分の public フォルダにある画像を表示 */}
       <div className="absolute inset-0 pointer-events-none p-1 flex justify-center items-center">
         <img 
-          src={BODY_MAP_URL} 
+          src={BODY_MAP_PATH} 
           className="w-full h-full object-contain opacity-100" 
           alt="Anatomical Chart" 
-          onError={(e) => { e.target.src = "https://api.iconify.design/mdi:human.svg"; }}
+          onError={(e) => {
+            console.error("画像が見つかりません。publicフォルダに body-map.png を入れてください。");
+          }}
         />
       </div>
       
@@ -173,9 +175,7 @@ export default function Home() {
               <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
               <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
             </div>
-            {/* 住所欄を追加 */}
             <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
-            
             <textarea placeholder="既往歴・手術歴・禁止事項" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-24" value={basicInfo.history} onChange={e => setBasicInfo({...basicInfo, history: e.target.value})} />
             <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[1.5rem] border border-blue-100 shadow-inner">
               <label className="text-[10px] font-bold text-blue-500 uppercase block mb-2 tracking-widest text-left">My Vision: 本来のあなた、ありたい姿</label>
