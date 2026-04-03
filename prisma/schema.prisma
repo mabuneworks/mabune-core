@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,40 +11,47 @@ datasource db {
 }
 
 model Patient {
-  id        Int      @id @default(autoincrement())
-  name      String
-  birthday  String?
-  address   String?
-  tags      String?
-  createdAt DateTime @default(now())
-  records   Record[]
+  id            String   @id @default(cuid())
+  name          String
+  address       String?
+  age           String?
+  phone         String?
+  history       String? // 既往歴
+  surgery       String? // 手術歴
+  romLimit      String? // 可動域制限
+  noTouch       String? // 触れられたくない場所
+  doctorNote    String? // 医師の指示
+  idealState    String? // 本来の自分・ありたい姿
+  records       Record[]
+  createdAt     DateTime @default(now())
 }
 
 model Record {
-  id                Int      @id @default(autoincrement())
-  patientId         Int
-  patient           Patient  @relation(fields: [patientId], references: [id])
-  date              DateTime @default(now())
-  visitCount        Int
-  paymentAmount     Int?
-  scoreShoulderUp   Float
-  scoreShoulderTwist String
-  scoreShoulderInL  Float
-  scoreShoulderInR  Float
-  scoreWaistHip     Float
-  scoreAS           Float
-  scoreGreaterTro   Float
-  scoreElbowRatio   Float
-  scoreShoulder     Float
-  scoreEar          Float
-  scoreFace         Float
-  extraNeck         String?
-  extraBack         String?
-  extraKneeFlex     String?
-  extraFemurIn      String?
-  photoBefore       String?
-  photoAfter        String?
-  photoSide         String?
-  photoFace         String?
-  memo              String?
+  id                    String   @id @default(cuid())
+  patientId             String
+  patient               Patient  @relation(fields: [patientId], references: [id])
+  date                  DateTime @default(now())
+  visitCount            Int
+  
+  // 診察スコア
+  scoreShoulderUp       Float?
+  scoreShoulderTwist    String?
+  scoreShoulderInL      Float?
+  scoreShoulderInR      Float?
+  scoreWaistHip         Float?
+  scoreAS               Float?
+  scoreGreaterTro       Float?
+  scoreElbowRatio       Float?
+  scoreShoulder         Float?
+  scoreEar              Float?
+  scoreFace             Float?
+  
+  // メモ・画像・描画データ
+  counselingMemo        String?  // カウンセリング内容
+  treatmentMemo         String?  // 施術内容
+  drawingData           String?  // ボディマップの描き込み（Base64形式）
+  imagesBefore          String[] // Before画像URL（最大4枚）
+  imagesAfter           String[] // After画像URL（最大4枚）
+  
+  createdAt             DateTime @default(now())
 }

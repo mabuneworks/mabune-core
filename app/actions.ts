@@ -1,52 +1,67 @@
+// actions.ts
 'use server'
-
 import { prisma } from './lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-export async function saveRecord(formData: any) {
-  // 1. まず患者さんを探す。いなければ新しく作る（簡易版）
-  let patient = await prisma.patient.findFirst({
-    where: { name: formData.name }
-  })
-
+export async function saveRecord(data: any) {
+  // 1. 患者情報の更新（インテーク）
+  let patient = await prisma.patient.findFirst({ where: { name: data.name } })
   if (!patient) {
     patient = await prisma.patient.create({
       data: {
-        name: formData.name,
-        // ここに住所や生年月日も追加可能
+        name: data.name,
+        address: data.address,
+        age: data.age,
+        phone: data.phone,
+        history: data.history,
+        surgery: data.surgery,
+        romLimit: data.romLimit,
+        noTouch: data.noTouch,
+        doctorNote: data.doctorNote,
+        idealState: data.idealState,
+      }
+    })
+  } else {
+    await prisma.patient.update({
+      where: { id: patient.id },
+      data: {
+        address: data.address, age: data.age, phone: data.phone,
+        history: data.history, surgery: data.surgery,
+        romLimit: data.romLimit, noTouch: data.noTouch,
+        doctorNote: data.doctorNote, idealState: data.idealState
       }
     })
   }
 
-  // 2. 金庫（Recordテーブル）に保存する
+  // 2. 施術記録の保存
   const record = await prisma.record.create({
     data: {
       patientId: patient.id,
-      visitCount: parseInt(formData.count),
-      scoreShoulderUp: formData.examData["肩上"].score,
-      scoreShoulderTwist: formData.examData["肩捻じれ"].side,
-      scoreShoulderInL: formData.examData["肩内旋左"],
-      scoreShoulderInR: formData.examData["肩内旋右"],
-      scoreWaistHip: formData.examData["ウエスト・お尻"],
-      scoreAS: formData.examData["AS"].score,
-      scoreGreaterTro: formData.examData["大転子"],
-      scoreElbowRatio: formData.examData["肘比率"],
-      scoreShoulder: formData.examData["肩"],
-      scoreEar: formData.examData["耳"],
-      scoreFace: formData.examData["顔"].score,
-      // メモなど
-      memo: `首:${formData.extraExamData["首"].side}${formData.extraExamData["首"].pos}, 腰:${formData.extraExamData["腰"].side}${formData.extraExamData["腰"].pos}`,
+      visitCount: parseInt(data.count),
+      scoreShoulderUp: data.examData["肩上"].score,
+      scoreShoulderTwist: data.examData["肩捻じれ"].side,
+      scoreShoulderInL: data.examData["肩内旋左"],
+      scoreShoulderInR: data.examData["肩内旋右"],
+      scoreWaistHip: data.examData["ウエスト・お尻"],
+      scoreAS: data.examData["AS"].score,
+      scoreGreaterTro: data.examData["大転子"],
+      scoreElbowRatio: data.examData["肘比率"],
+      scoreShoulder: data.examData["肩"],
+      scoreEar: data.examData["耳"],
+      scoreFace: data.examData["顔"].score,
+      counselingMemo: data.counselingMemo,
+      treatmentMemo: data.treatmentMemo,
+      drawingData: data.drawingData,
     }
   })
 
-  console.log("金庫に保存しました:", record)
-  revalidatePath('/') // 画面を更新
-  return { success: true, recordId: record.id }
-}export async function getRecords() {
-  const records = await prisma.record.findMany({
-    include: { patient: true }, // 患者さんの名前も一緒に持ってくる
-    orderBy: { date: 'desc' },   // 新しい順に並べる
-    take: 10                    // とりあえず最新10件
+  revalidatePath('/')
+  return { success: true }
+}
+
+export async function getRecords() {
+  return await prisma.record.findMany({
+    include: { patient: true },
+    orderBy: { date: 'desc' },
   })
-  return records
 }

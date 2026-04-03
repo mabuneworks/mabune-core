@@ -1,41 +1,108 @@
 // @ts-nocheck
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { saveRecord, getRecords } from './actions';
 
-// === 設定: データ構造 ===
-const SCORE_OPTIONS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-const SIDE_OPTIONS = ["左", "右"];
-const POS_VERTICAL_OPTIONS = ["上", "中", "下"];
-const FACE_ALIGNMENTS = ["捻れ", "傾き", "スライド"];
+// === ボディマップ用キャンバスコンポーネント ===
+const BodyMapCanvas = ({ onSave }) => {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
 
-// === 状態管理の初期値 ===
-const initialScores = {
-  "肩上": { side: "", score: 3.0 },
-  "肩捻じれ": { side: "" }, 
-  "肩内旋左": 3.0,
-  "肩内旋右": 3.0,
-  "ウエスト・お尻": 3.0, 
-  "AS": { side: "", score: 3.0 },
-  "大転子": 3.0,
-  "肘比率": 3.0,
-  "肩": 3.0,
-  "耳": 3.0,
-  "顔": { side: "", alignment: "", score: 3.0 },
-};
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+  }, []);
 
-const initialExtraExams = {
-  "首": { side: "", pos: "" },
-  "腰": { side: "", pos: "" },
-  "膝屈曲": { side: "", diffCm: 0 },
-  "大腿骨内旋": { side: "", diffCm: 0 },
+  const startDrawing = (e) => {
+    const { offsetX, offsetY } = e.nativeEvent;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.beginPath();
+    ctx.moveTo(offsetX, offsetY);
+    setIsDrawing(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const { offsetX, offsetY } = e.nativeEvent;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.lineTo(offsetX, offsetY);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    onSave(canvas.toDataURL());
+  };
+
+  const clear = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    onSave(null);
+  };
+
+  return (
+    <div className="relative border-2 border-slate-200 rounded-2xl bg-white overflow-hidden shadow-inner">
+      <div className="absolute inset-0 pointer-events-none opacity-20 flex justify-around items-center p-4">
+        {/* シンプルな人体図の代わりとしてのテキスト配置（実際はここに画像を置けます） */}
+        <div className="text-4xl font-bold">正面</div>
+        <div className="text-4xl font-bold">側面</div>
+        <div className="text-4xl font-bold">背面</div>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={600}
+        height={300}
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          const rect = canvasRef.current.getBoundingClientRect();
+          startDrawing({ nativeEvent: { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top } });
+        }}
+        onTouchMove={(e) => {
+          const touch = e.touches[0];
+          const rect = canvasRef.current.getBoundingClientRect();
+          draw({ nativeEvent: { offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top } });
+        }}
+        onTouchEnd={stopDrawing}
+        className="w-full h-auto cursor-crosshair touch-none"
+      />
+      <button onClick={clear} className="absolute bottom-2 right-2 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold">消去</button>
+    </div>
+  );
 };
 
 export default function Home() {
-  const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1" });
-  const [examData, setExamData] = useState(initialScores);
-  const [extraExamData, setExtraExamData] = useState(initialExtraExams);
-  const [history, setHistory] = useState<any[]>([]);
+  const [basicInfo, setBasicInfo] = useState({ 
+    name: "", date: "", count: "1", 
+    address: "", age: "", phone: "", 
+    history: "", surgery: "", romLimit: "", 
+    noTouch: "", doctorNote: "", idealState: "" 
+  });
+  const [examData, setExamData] = useState({
+    "肩上": { side: "", score: 3.0 },
+    "肩捻じれ": { side: "" }, 
+    "肩内旋左": 3.0, "肩内旋右": 3.0,
+    "ウエスト・お尻": 3.0, "AS": { side: "", score: 3.0 },
+    "大転子": 3.0, "肘比率": 3.0, "肩": 3.0, "耳": 3.0,
+    "顔": { side: "", alignment: "", score: 3.0 },
+  });
+  const [extraExamData, setExtraExamData] = useState({
+    "首": { side: "", pos: "" }, "腰": { side: "", pos: "" },
+    "膝屈曲": { side: "", diffCm: 0 }, "大腿骨内旋": { side: "", diffCm: 0 },
+  });
+  const [memos, setMemos] = useState({ counseling: "", treatment: "" });
+  const [drawingData, setDrawingData] = useState(null);
+  const [history, setHistory] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -45,243 +112,146 @@ export default function Home() {
     load();
   }, []);
 
-  const calculateDeviation = () => {
-    let total = 0;
-    const scoreItems = ["肩上", "肩内旋左", "肩内旋右", "ウエスト・お尻", "AS", "大転子", "肘比率", "肩", "耳", "顔"] as const;
-    scoreItems.forEach((item) => {
-      const data = (examData as any)[item];
-      if (typeof data === 'number') {
-        total += data;
-      } else if (data && typeof (data as any).score === 'number') {
-        total += (data as any).score;
-      }
-    });
-    return (45 - (total * 2)) * 2 + 50;
-  };
-
   const updateExamItem = (itemKey: any, data: any) => {
     setExamData(prev => ({ ...prev, [itemKey]: data }));
   };
 
-  const updateExtraExamItem = (itemKey: any, data: any) => {
-    setExtraExamData(prev => ({ ...prev, [itemKey]: data }));
-  };
-
   const ScoreButtons = ({ currentScore, onSelect }: any) => (
-    <div className="grid grid-cols-4 gap-2 mt-4">
-      {SCORE_OPTIONS.map((num) => (
-        <button key={num} onClick={() => onSelect(num)} className={`py-3 rounded-xl font-bold text-sm transition-all ${currentScore === num ? 'bg-blue-600 text-white shadow-lg scale-105' : 'bg-slate-100 text-slate-600 active:bg-slate-200'}`}>
-          {num.toFixed(1)}
-        </button>
-      ))}
-    </div>
-  );
-
-  const SideButtons = ({ currentSide, onSelect }: any) => (
-    <div className="flex gap-2 mb-2">
-      {SIDE_OPTIONS.map(side => (
-        <button key={side} onClick={() => onSelect(side)} className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all ${currentSide === side ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>{side}</button>
-      ))}
-    </div>
-  );
-
-  const PosVerticalButtons = ({ currentPos, onSelect }) => (
-    <div className="flex gap-2 mt-2">
-      {POS_VERTICAL_OPTIONS.map(pos => (
-        <button key={pos} onClick={() => onSelect(pos)} className={`px-5 py-2.5 rounded-full text-xs font-bold transition-all ${currentPos === pos ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}`}>{pos}</button>
-      ))}
-    </div>
-  );
-
-  const FaceAlignmentButtons = ({ currentAlign, onSelect }) => (
-    <div className="flex flex-wrap gap-2 mb-2">
-      {FACE_ALIGNMENTS.map(align => (
-        <button key={align} onClick={() => onSelect(align)} className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${currentAlign === align ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500'}`}>{align}</button>
+    <div className="grid grid-cols-4 gap-2 mt-2">
+      {[2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0].map((num) => (
+        <button key={num} onClick={() => onSelect(num)} className={`py-2 rounded-lg font-bold text-xs ${currentScore === num ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>{num.toFixed(1)}</button>
       ))}
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-32 font-sans text-slate-900">
-      <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-md mx-auto flex justify-between items-end">
+    <div className="min-h-screen bg-slate-50 pb-40 font-sans text-slate-900">
+      <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-md mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">mabune Core</h1>
-            <p className="text-xs text-slate-500 italic">RE:SET Chart System</p>
+            <h1 className="text-xl font-bold text-slate-800">mabune Core</h1>
+            <p className="text-[10px] text-blue-600 font-bold tracking-widest">RE:SET CHART</p>
           </div>
-          <input type="text" placeholder="氏名" className="border-b border-slate-300 focus:border-blue-500 outline-none px-2 text-right w-32" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
+          <input type="text" placeholder="お名前" className="border-b-2 border-blue-500 outline-none px-2 text-right w-32 text-lg font-bold" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-8">
-        {/* 基本情報 */}
-        <section className="grid grid-cols-2 gap-4 text-sm bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-          <div>
-            <label className="text-slate-500 block mb-1">受診日</label>
-            <input type="date" className="w-full p-2 rounded-lg border border-slate-200" value={basicInfo.date} onChange={e => setBasicInfo({...basicInfo, date: e.target.value})} />
+      <main className="max-w-md mx-auto p-4 space-y-10">
+        {/* 1. 問診セクション */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-black text-slate-400 tracking-[0.3em] uppercase">01. Intake Form</h2>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
+              <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
+            </div>
+            <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
+            <textarea placeholder="既往歴・手術歴" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-20" value={basicInfo.history} onChange={e => setBasicInfo({...basicInfo, history: e.target.value})} />
+            <textarea placeholder="可動域制限・触れられたくない場所" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-20" value={basicInfo.noTouch} onChange={e => setBasicInfo({...basicInfo, noTouch: e.target.value})} />
+            <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+              <label className="text-[10px] font-bold text-blue-500 uppercase block mb-2">My Philosophy</label>
+              <textarea placeholder="本来のあなた、ありたい姿は何ですか？" className="w-full bg-transparent outline-none text-sm text-blue-900 placeholder:text-blue-300 h-24" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
+            </div>
           </div>
-          <div>
-            <label className="text-slate-500 block mb-1">回数</label>
-            <input type="number" className="w-full p-2 rounded-lg border border-slate-200" placeholder="1" value={basicInfo.count} onChange={e => setBasicInfo({...basicInfo, count: e.target.value})} />
+        </section>
+
+        {/* 2. ボディマップ（ペン入力） */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-black text-slate-400 tracking-[0.3em] uppercase">02. Body Map</h2>
+          <BodyMapCanvas onSave={setDrawingData} />
+          <p className="text-[10px] text-slate-400 text-center">※人体図の上をペンや指でなぞって状態をメモしてください</p>
+        </section>
+
+        {/* 3. 診察スコア */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-black text-slate-400 tracking-[0.3em] uppercase">03. Physical Exam</h2>
+          <div className="space-y-3">
+            {Object.keys(examData).map(key => (
+              <div key={key} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+                <span className="font-bold text-slate-700 text-sm">{key}</span>
+                <div className="w-48">
+                  {typeof examData[key] === 'number' ? (
+                    <ScoreButtons currentScore={examData[key]} onSelect={(val) => updateExamItem(key, val)} />
+                  ) : (
+                    <ScoreButtons currentScore={examData[key].score} onSelect={(val) => updateExamItem(key, { ...examData[key], score: val })} />
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* 診察フロー */}
-        <section className="space-y-6">
-          <h2 className="text-xs font-bold text-blue-600 tracking-widest uppercase mb-4">冨田式 診察フロー</h2>
-          {[
-            { key: "肩上", label: "肩上", type: "sideScore" },
-            { key: "肩捻じれ", label: "肩捻じれ", type: "sideOnly" },
-            { key: "肩内旋左", label: "肩内旋左", type: "scoreOnly" },
-            { key: "肩内旋右", label: "肩内旋右", type: "scoreOnly" },
-            { key: "ウエスト・お尻", label: "ウエスト・お尻", type: "scoreOnly" },
-            { key: "AS", label: "AS", type: "sideScore" },
-            { key: "大転子", label: "大転子", type: "scoreOnly" },
-            { key: "肘比率", label: "肘比率", type: "scoreOnly" },
-            { key: "肩", label: "肩", type: "scoreOnly" },
-            { key: "耳", label: "耳", type: "scoreOnly" },
-            { key: "顔", label: "顔", type: "face" },
-          ].map((item) => {
-            const data = examData[item.key];
-            return (
-              <div key={item.key} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <label className="block text-base font-bold text-slate-800 mb-4">{item.label}</label>
-                {item.type === "sideScore" && (
-                  <>
-                    <SideButtons currentSide={data.side} onSelect={(side) => updateExamItem(item.key, { ...data, side })} />
-                    <ScoreButtons currentScore={data.score} onSelect={(score) => updateExamItem(item.key, { ...data, score })} />
-                  </>
-                )}
-                {item.type === "sideOnly" && (
-                  <SideButtons currentSide={data.side} onSelect={(side) => updateExamItem(item.key, { side })} />
-                )}
-                {item.type === "scoreOnly" && (
-                  <ScoreButtons currentScore={data} onSelect={(score) => updateExamItem(item.key, score)} />
-                )}
-                {item.type === "face" && (
-                  <div className="space-y-3">
-                    <SideButtons currentSide={data.side} onSelect={(side) => updateExamItem(item.key, { ...data, side })} />
-                    <FaceAlignmentButtons currentAlign={data.alignment} onSelect={(alignment) => updateExamItem(item.key, { ...data, alignment })} />
-                    <ScoreButtons currentScore={data.score} onSelect={(score) => updateExamItem(item.key, { ...data, score })} />
-                  </div>
-                )}
+        {/* 4. メモ・画像スペース */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-black text-slate-400 tracking-[0.3em] uppercase">04. Session Notes</h2>
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-6">
+            <div>
+              <label className="text-xs font-bold text-slate-400 mb-2 block">カウンセリング内容</label>
+              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32" value={memos.counseling} onChange={e => setMemos({...memos, counseling: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-400 mb-2 block">施術内容</label>
+              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32" value={memos.treatment} onChange={e => setMemos({...memos, treatment: e.target.value})} />
+            </div>
+            
+            {/* 写真枠の見本 */}
+            <div className="pt-4 border-t border-slate-100">
+              <label className="text-xs font-bold text-slate-400 mb-4 block">Visual Records (Before / After)</label>
+              <div className="grid grid-cols-4 gap-2">
+                {[1,2,3,4].map(i => <div key={i} className="aspect-square bg-slate-100 rounded-lg flex items-center justify-center text-[10px] text-slate-300 border-2 border-dashed border-slate-200">B-{i}</div>)}
+                {[1,2,3,4].map(i => <div key={i} className="aspect-square bg-blue-50 rounded-lg flex items-center justify-center text-[10px] text-blue-200 border-2 border-dashed border-blue-100">A-{i}</div>)}
               </div>
-            );
-          })}
+            </div>
+          </div>
         </section>
 
-        {/* 追加検査 */}
-        <section className="space-y-6">
-          <h2 className="text-xs font-bold text-slate-600 tracking-widest uppercase mb-4">追加検査項目</h2>
-          {[
-            { key: "首", label: "首", type: "sidePos" },
-            { key: "腰", label: "腰", type: "sidePos" },
-            { key: "膝屈曲", label: "膝屈曲", type: "sideInputCm" },
-            { key: "大腿骨内旋", label: "大腿骨内旋", type: "sideInputCm" },
-          ].map((item) => {
-            const data = extraExamData[item.key];
-            return (
-              <div key={item.key} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-                <label className="block text-base font-bold text-slate-800 mb-4">{item.label}</label>
-                {item.type === "sidePos" && (
-                  <>
-                    <SideButtons currentSide={data.side} onSelect={(side) => updateExtraExamItem(item.key, { ...data, side })} />
-                    <PosVerticalButtons currentPos={data.pos} onSelect={(pos) => updateExtraExamItem(item.key, { ...data, pos })} />
-                  </>
-                )}
-                {item.type === "sideInputCm" && (
-                  <>
-                    <SideButtons currentSide={data.side} onSelect={(side) => updateExtraExamItem(item.key, { ...data, side })} />
-                    <div className="mt-3 flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                        <label className="text-xs text-slate-500 font-bold">左右差</label>
-                        <input type="number" step="0.1" className="w-24 p-2 rounded-lg border border-slate-200 text-right font-mono text-lg" value={data.diffCm} onChange={e => updateExtraExamItem(item.key, { ...data, diffCm: parseFloat(e.target.value) || 0 })} />
-                        <span className="text-sm font-bold text-slate-700">cm</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </section>
-
-        {/* 施術履歴：全11項目を個別に表示（actions.tsのラベルと完全一致版） */}
-        <div className="mt-12 bg-white/80 backdrop-blur-md p-6 rounded-3xl shadow-xl border border-white/50 mb-20">
-          <h2 className="text-xl font-bold mb-6 text-slate-800 flex items-center gap-2">
-            <span>📜</span> 施術履歴（全項目を単独表示）
-          </h2>
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="py-3 px-3 text-slate-500 font-medium text-[10px]">日時 / 名前</th>
-                  <th className="py-3 px-3 text-slate-500 font-medium text-[10px]">回数</th>
-                  <th className="py-3 px-2 text-blue-600 font-bold text-[10px]">肩上</th>
-                  <th className="py-3 px-2 text-slate-400 font-medium text-[10px]">捻れ</th>
-                  <th className="py-3 px-2 text-blue-500 font-bold text-[10px]">内旋L</th>
-                  <th className="py-3 px-2 text-blue-500 font-bold text-[10px]">内旋R</th>
-                  <th className="py-3 px-2 text-green-600 font-bold text-[10px]">ｳｴｽﾄ</th>
-                  <th className="py-3 px-2 text-purple-600 font-bold text-[10px]">AS</th>
-                  <th className="py-3 px-2 text-slate-600 font-bold text-[10px]">大転子</th>
-                  <th className="py-3 px-2 text-slate-600 font-bold text-[10px]">肘比率</th>
-                  <th className="py-3 px-2 text-slate-600 font-bold text-[10px]">肩</th>
-                  <th className="py-3 px-2 text-slate-600 font-bold text-[10px]">耳</th>
-                  <th className="py-3 px-2 text-pink-600 font-bold text-[10px]">顔</th>
+        {/* 5. 施術履歴 */}
+        <section className="pb-20">
+          <h2 className="text-sm font-black text-slate-400 tracking-[0.3em] uppercase mb-4">05. Archive</h2>
+          <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500">
+                <tr>
+                  <th className="p-4">日時</th>
+                  <th className="p-4">回数</th>
+                  <th className="p-4">状態</th>
                 </tr>
               </thead>
               <tbody>
-                {history.map((rec) => (
-                  <tr key={rec.id} className="border-b border-slate-100 hover:bg-blue-50/30 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="text-[10px] text-slate-400">{new Date(rec.date).toLocaleDateString()}</div>
-                      <div className="font-bold text-slate-800 text-xs">{rec.patient?.name}</div>
-                    </td>
-                    <td className="py-3 px-3 text-slate-500 text-xs">{rec.visitCount}回</td>
-                    
-                    {/* 数字の表示部分：actions.tsで指定された名前（scoreShoulderInLなど）に修正しました */}
-                    <td className="py-3 px-2 text-blue-600 font-mono font-bold text-xs">{rec.scoreShoulderUp?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-400 text-[10px]">{rec.scoreShoulderTwist}</td>
-                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{rec.scoreShoulderInL?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-blue-500 font-mono text-xs">{rec.scoreShoulderInR?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-green-600 font-mono font-bold text-xs">{rec.scoreWaistHip?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-purple-600 font-mono font-bold text-xs">{rec.scoreAS?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreGreaterTro?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreElbowRatio?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreShoulder?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-slate-600 font-mono text-xs">{rec.scoreEar?.toFixed(1)}</td>
-                    <td className="py-3 px-2 text-pink-600 font-mono font-bold text-xs">{rec.scoreFace?.toFixed(1)}</td>
+                {history.slice(0, 5).map(rec => (
+                  <tr key={rec.id} className="border-t border-slate-50">
+                    <td className="p-4 font-bold">{new Date(rec.date).toLocaleDateString()}</td>
+                    <td className="p-4">{rec.visitCount}回</td>
+                    <td className="p-4 text-blue-500 font-mono">Face:{rec.scoreFace?.toFixed(1)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="mt-4 text-[10px] text-slate-400 text-center italic">※ 表を左右にスワイプして詳細を確認できます</p>
-        </div>
+        </section>
       </main>
 
-      {/* フッター */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-6 shadow-2xl rounded-t-3xl z-20">
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-8 shadow-2xl rounded-t-[3rem] z-40">
         <div className="max-w-md mx-auto flex justify-between items-center">
-          <div>
-            <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em]">RE:SET DEVIATION</p>
-            <p className="text-5xl font-black text-blue-400 tracking-tighter">{calculateDeviation().toFixed(1)}</p>
-          </div>
           <button 
             onClick={async () => {
-              const result = await saveRecord({
-                name: basicInfo.name,
-                count: basicInfo.count,
-                examData: examData,
-                extraExamData: extraExamData
+              const res = await saveRecord({
+                ...basicInfo,
+                examData,
+                extraExamData,
+                counselingMemo: memos.counseling,
+                treatmentMemo: memos.treatment,
+                drawingData
               });
-              if (result.success) {
-                alert("金庫に保存しました！");
-                const newData = await getRecords(); 
+              if (res.success) {
+                alert("大切なカルテを保存しました");
+                const newData = await getRecords();
                 setHistory(newData);
               }
             }}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-bold transition-all active:scale-95 shadow-lg"
+            className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95"
           >
-            カルテを保存
+            本日の記録を保存する
           </button>
         </div>
       </footer>
