@@ -8,6 +8,9 @@ const BodyMapCanvas = ({ onSave }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   
+  // 生成された上品な人体図のURL
+  const BODY_MAP_URL = "https://r.jina.ai/i/6f937d53086940be8766107380436892";
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -16,12 +19,20 @@ const BodyMapCanvas = ({ onSave }) => {
     ctx.lineCap = 'round';
   }, []);
 
-  const startDrawing = (e) => {
+  const getPointerPos = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX || e.touches?.[0]?.clientX) - rect.left) * (canvas.width / rect.width);
-    const y = ((e.clientY || e.touches?.[0]?.clientY) - rect.top) * (canvas.height / rect.height);
-    const ctx = canvas.getContext('2d');
+    const clientX = e.clientX || e.touches?.[0]?.clientX;
+    const clientY = e.clientY || e.touches?.[0]?.clientY;
+    return {
+      x: (clientX - rect.left) * (canvas.width / rect.width),
+      y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+  };
+
+  const startDrawing = (e) => {
+    const { x, y } = getPointerPos(e);
+    const ctx = canvasRef.current.getContext('2d');
     ctx.beginPath();
     ctx.moveTo(x, y);
     setIsDrawing(true);
@@ -29,11 +40,8 @@ const BodyMapCanvas = ({ onSave }) => {
 
   const draw = (e) => {
     if (!isDrawing) return;
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = ((e.clientX || e.touches?.[0]?.clientX) - rect.left) * (canvas.width / rect.width);
-    const y = ((e.clientY || e.touches?.[0]?.clientY) - rect.top) * (canvas.height / rect.height);
-    const ctx = canvas.getContext('2d');
+    const { x, y } = getPointerPos(e);
+    const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(x, y);
     ctx.stroke();
   };
@@ -53,13 +61,16 @@ const BodyMapCanvas = ({ onSave }) => {
 
   return (
     <div className="relative border-2 border-slate-200 rounded-[2rem] bg-white overflow-hidden shadow-sm aspect-[16/9]">
-      <div className="absolute inset-0 pointer-events-none p-2 flex justify-center items-center">
+      {/* 背景：骨格人体図 */}
+      <div className="absolute inset-0 pointer-events-none p-1 flex justify-center items-center">
         <img 
-          src="https://r.jina.ai/i/6f937d53086940be8766107380436892" 
-          className="w-full h-full object-contain opacity-90" 
+          src={BODY_MAP_URL} 
+          className="w-full h-full object-contain opacity-100" 
           alt="Anatomical Chart" 
+          onError={(e) => { e.target.src = "https://api.iconify.design/mdi:human.svg"; }}
         />
       </div>
+      
       <canvas
         ref={canvasRef}
         width={1200}
@@ -68,8 +79,8 @@ const BodyMapCanvas = ({ onSave }) => {
         onMouseMove={draw}
         onMouseUp={stopDrawing}
         onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
+        onTouchStart={(e) => { e.preventDefault(); startDrawing(e); }}
+        onTouchMove={(e) => { e.preventDefault(); draw(e); }}
         onTouchEnd={stopDrawing}
         className="w-full h-full cursor-crosshair touch-none relative z-10"
       />
@@ -105,7 +116,6 @@ export default function Home() {
     load();
   }, []);
 
-  // 偏差値計算ロジック
   const calcDev = (dataMap) => {
     let total = 0;
     const scores = [
@@ -163,8 +173,11 @@ export default function Home() {
               <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
               <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
             </div>
+            {/* 住所欄を追加 */}
+            <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
+            
             <textarea placeholder="既往歴・手術歴・禁止事項" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-24" value={basicInfo.history} onChange={e => setBasicInfo({...basicInfo, history: e.target.value})} />
-            <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[1.5rem] border border-blue-100 shadow-inner text-center">
+            <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[1.5rem] border border-blue-100 shadow-inner">
               <label className="text-[10px] font-bold text-blue-500 uppercase block mb-2 tracking-widest text-left">My Vision: 本来のあなた、ありたい姿</label>
               <textarea className="w-full bg-transparent outline-none text-sm text-blue-900 placeholder:text-blue-300 h-24 italic" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
             </div>
@@ -212,16 +225,16 @@ export default function Home() {
           </div>
         </section>
 
-        {/* 履歴（項目分離 & 偏差値追加版） */}
+        {/* アーカイブ */}
         <section className="pb-20 space-y-4">
           <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">05. Clinical Archive</h2>
           <div className="bg-white rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1100px]">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     <th className="p-5 text-[10px] font-bold text-slate-500 uppercase">Date/Name</th>
-                    <th className="p-2 text-[10px] font-black text-blue-700 uppercase">Deviation</th>
+                    <th className="p-2 text-[10px] font-black text-blue-700 uppercase">Dev</th>
                     <th className="p-2 text-[10px] font-bold text-blue-600">肩上</th>
                     <th className="p-2 text-[10px] font-bold text-blue-500">内旋L</th>
                     <th className="p-2 text-[10px] font-bold text-blue-500">内旋R</th>
@@ -241,7 +254,6 @@ export default function Home() {
                         <div className="text-[9px] text-slate-400 font-mono">{new Date(rec.date).toLocaleDateString()}</div>
                         <div className="font-bold text-xs text-slate-800">{rec.patient?.name}</div>
                       </td>
-                      {/* その時点の偏差値を計算して表示 */}
                       <td className="p-2 font-black text-sm text-blue-700">{calcDev(rec).toFixed(1)}</td>
                       <td className="p-2 font-mono text-xs text-blue-600 font-bold">{rec.scoreShoulderUp?.toFixed(1)}</td>
                       <td className="p-2 font-mono text-xs text-blue-500">{rec.scoreShoulderInL?.toFixed(1)}</td>
