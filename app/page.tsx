@@ -23,12 +23,11 @@ const PhotoSection = ({ title, photos, setPhotos, colorClass }) => {
       <h3 className={`text-[10px] font-black ${colorClass} tracking-widest uppercase`}>{title}</h3>
       <div className="grid grid-cols-4 gap-2">
         {photos.map((src, i) => (
-          <div key={i} className="relative aspect-[3/4] bg-slate-100 rounded-xl overflow-hidden border-2 border-dashed border-slate-200">
+          <div key={i} className="relative aspect-[3/4] bg-slate-100 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 shadow-inner">
             {src ? <img src={src} className="w-full h-full object-cover" /> : (
               <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer">
                 <span className="text-[8px] font-bold text-slate-400">{labels[i]}</span>
                 <span className="text-lg text-slate-300">+</span>
-                {/* capture="environment" を追加：スマホでカメラが優先起動します */}
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFile(i, e)} />
               </label>
             )}
@@ -57,7 +56,7 @@ const BodyMapCanvas = ({ onSave }) => {
   return (
     <div className="relative border-2 border-slate-200 rounded-[2rem] bg-white overflow-hidden aspect-[16/9] shadow-sm">
       <div className="absolute inset-0 pointer-events-none p-1 flex justify-center items-center">
-        <img src="/body-map.png" className="w-full h-full object-contain opacity-80" alt="Chart" />
+        <img src="/body-map.png" className="w-full h-full object-contain opacity-100" alt="Chart" />
       </div>
       <canvas ref={canvasRef} width={1200} height={675} 
         onMouseDown={(e)=>{const {x,y}=getPos(e); canvasRef.current.getContext('2d').beginPath(); canvasRef.current.getContext('2d').moveTo(x,y); setIsDrawing(true);}}
@@ -90,93 +89,83 @@ export default function Home() {
     return (45 - (total * 2)) * 2 + 50;
   };
 
-  // 比較画像を1枚の画像としてダウンロードする機能
   const downloadComparison = (before, after, label) => {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    const imgB = new Image();
-    const imgA = new Image();
-    imgB.src = before;
-    imgA.src = after;
+    const imgB = new Image(); const imgA = new Image();
+    imgB.src = before; imgA.src = after;
     imgB.onload = () => {
-      canvas.width = 1200; canvas.height = 800; // 横並びのサイズ
+      canvas.width = 1200; canvas.height = 800;
       ctx.fillStyle = "black"; ctx.fillRect(0, 0, 1200, 800);
-      ctx.drawImage(imgB, 0, 0, 600, 800);
-      ctx.drawImage(imgA, 600, 0, 600, 800);
-      // ラベル追加
+      ctx.drawImage(imgB, 0, 0, 600, 800); ctx.drawImage(imgA, 600, 0, 600, 800);
       ctx.fillStyle = "white"; ctx.font = "bold 30px Arial";
-      ctx.fillText("BEFORE", 20, 780); ctx.fillText("AFTER", 620, 780);
-      ctx.fillText(label, 500, 50);
-      
-      const link = document.createElement("a");
-      link.download = `mabune_${label}_compare.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      ctx.fillText("BEFORE", 20, 780); ctx.fillText("AFTER", 620, 780); ctx.fillText(label, 500, 50);
+      const link = document.createElement("a"); link.download = `mabune_${label}_compare.png`; link.href = canvas.toDataURL("image/png"); link.click();
     };
   };
 
   return (
     <div className="min-h-screen bg-slate-50 pb-40 font-sans text-slate-900">
-      <header className="bg-white/80 backdrop-blur-md border-b p-4 sticky top-0 z-40 flex justify-between items-center">
-        <div><h1 className="text-xl font-bold">mabune Core</h1><p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest italic">mabune beauty & care</p></div>
-        <input type="text" placeholder="氏名" className="border-b-2 border-blue-500 outline-none px-2 text-right w-32 font-bold bg-transparent" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
+      <header className="bg-white/80 backdrop-blur-md border-b p-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
+        <div><h1 className="text-xl font-bold tracking-tighter">mabune Core</h1><p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest italic">mabune beauty & care</p></div>
+        <input type="text" placeholder="氏名" className="border-b-2 border-blue-500 outline-none px-2 text-right w-32 font-bold bg-transparent text-lg" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-10">
-        {/* 問診票 */}
-        <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border space-y-4">
+      <main className="max-w-md mx-auto p-4 space-y-12">
+        {/* 01. 復活した完璧な問診票 */}
+        <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border space-y-5">
           <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">01. Intake Form</h2>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
-            <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
+          <div className="grid grid-cols-2 gap-3">
+            <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
+            <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
           </div>
           <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
-          <textarea placeholder="本来の自分、ありたい姿" className="w-full p-4 bg-blue-50/50 rounded-2xl text-sm h-24 italic" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
+          <textarea placeholder="既往歴・手術歴・禁止事項" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-24" value={basicInfo.history} onChange={e => setBasicInfo({...basicInfo, history: e.target.value})} />
+          <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[1.5rem] border border-blue-100 shadow-inner">
+            <label className="text-[10px] font-bold text-blue-500 block mb-2 tracking-widest uppercase">My Vision: ありたい姿</label>
+            <textarea className="w-full bg-transparent outline-none text-sm h-24 italic text-blue-900 placeholder:text-blue-300" placeholder="本来の自分、どうありたいですか？" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
+          </div>
         </section>
 
-        {/* ボディマップ */}
+        {/* 02. ボディマップ */}
         <section className="space-y-4">
           <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">02. Body Map</h2>
           <BodyMapCanvas onSave={setDrawingData} />
         </section>
 
-        {/* 撮影・比較 */}
+        {/* 03. 復活・進化したフォト比較 */}
         <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border space-y-6">
           <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">03. Visual Records</h2>
           <PhotoSection title="Before (施術前)" photos={imagesBefore} setPhotos={setImagesBefore} colorClass="text-slate-400" />
           <PhotoSection title="After (施術後)" photos={imagesAfter} setPhotos={setImagesAfter} colorClass="text-blue-600" />
-          
           <div className="pt-6 border-t space-y-6">
             {["顔", "前面", "背面", "側面"].map((label, i) => imagesBefore[i] && imagesAfter[i] && (
               <div key={i} className="space-y-2">
-                <div className="flex bg-black rounded-2xl overflow-hidden border-4 border-white shadow-lg aspect-[3/2]">
-                  <div className="relative flex-1"><img src={imagesBefore[i]} className="w-full h-full object-cover" /></div>
-                  <div className="relative flex-1 border-l border-white/20"><img src={imagesAfter[i]} className="w-full h-full object-cover" /></div>
+                <div className="flex bg-black rounded-2xl overflow-hidden border-4 border-white shadow-xl aspect-[3/2]">
+                  <div className="relative flex-1"><img src={imagesBefore[i]} className="w-full h-full object-cover" /><span className="absolute bottom-1 left-2 text-[7px] text-white bg-black/50 px-1 uppercase tracking-tighter">Before</span></div>
+                  <div className="relative flex-1 border-l border-white/20"><img src={imagesAfter[i]} className="w-full h-full object-cover" /><span className="absolute bottom-1 left-2 text-[7px] text-white bg-blue-600/80 px-1 uppercase tracking-tighter">After</span></div>
                 </div>
-                <button 
-                  onClick={() => downloadComparison(imagesBefore[i], imagesAfter[i], label)}
-                  className="w-full py-2 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold"
-                >
-                  {label}の比較画像を保存してLINEで送る
+                <button onClick={() => downloadComparison(imagesBefore[i], imagesAfter[i], label)} className="w-full py-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-bold shadow-sm active:scale-95 transition-all">
+                  {label}の比較画像を保存して送信
                 </button>
               </div>
             ))}
           </div>
         </section>
 
-        {/* 測定スコア */}
+        {/* 04. 測定スコア */}
         <section className="space-y-4">
           <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">04. Measurement</h2>
           <div className="grid gap-3">
             {Object.keys(examData).map(key => (
-              <div key={key} className="bg-white p-5 rounded-2xl border shadow-sm">
-                <span className="font-bold text-slate-700 text-xs mb-2 block">{key}</span>
+              <div key={key} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col">
+                <span className="font-bold text-slate-700 text-xs mb-2">{key}</span>
                 <div className="grid grid-cols-4 gap-1.5">
                   {[2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0].map(n => {
                     const curr = typeof examData[key] === 'number' ? examData[key] : examData[key].score;
                     return (
                       <button key={n} onClick={() => setExamData({...examData, [key]: typeof examData[key]==='number' ? n : {...examData[key], score: n}})} 
-                        className={`py-2 rounded-lg font-bold text-[10px] transition-all ${curr===n?'bg-blue-600 text-white shadow-md':'bg-slate-100 text-slate-500'}`}>{n.toFixed(1)}</button>
+                        className={`py-2 rounded-lg font-bold text-[10px] transition-all ${curr===n?'bg-blue-600 text-white shadow-md scale-105':'bg-slate-100 text-slate-500'}`}>{n.toFixed(1)}</button>
                     );
                   })}
                 </div>
@@ -185,17 +174,59 @@ export default function Home() {
           </div>
         </section>
 
-        {/* メモ */}
+        {/* 05. ノート & 復活した完璧なアーカイブ */}
         <section className="space-y-4 pb-20">
-          <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">05. Session Notes</h2>
-          <textarea placeholder="セルフケア指導等" className="w-full p-5 bg-white rounded-[2rem] text-sm h-32 shadow-sm border outline-none" value={memos.counseling} onChange={e => setMemos({...memos, counseling: e.target.value})} />
+          <h2 className="text-[10px] font-black text-slate-400 tracking-widest uppercase italic">05. Session Notes & Archive</h2>
+          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">セルフケア指導等</label>
+              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32 outline-none focus:ring-2 focus:ring-blue-100 transition-all" value={memos.counseling} onChange={e => setMemos({...memos, counseling: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">施術内容メモ</label>
+              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32 outline-none focus:ring-2 focus:ring-blue-100 transition-all" value={memos.treatment} onChange={e => setMemos({...memos, treatment: e.target.value})} />
+            </div>
+          </div>
           
-          {/* アーカイブテーブル（省略：前回のものを維持） */}
+          <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border overflow-x-auto">
+            <table className="w-full text-left text-[10px] min-w-[1250px]">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase border-b">
+                <tr>
+                  <th className="p-5 text-slate-600">Date/Name</th>
+                  <th className="p-2 text-blue-700 font-black">Dev</th>
+                  <th className="p-2">肩上</th>
+                  <th className="p-2">内L</th><th className="p-2">内R</th>
+                  <th className="p-2 text-green-600">ｳｴｽﾄ</th>
+                  <th className="p-2 text-purple-600">AS</th>
+                  <th className="p-2">大転</th><th className="p-2">肘比</th>
+                  <th className="p-2">肩</th><th className="p-2">耳</th>
+                  <th className="p-2 text-pink-600">顔</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map(rec => (
+                  <tr key={rec.id} className="border-t border-slate-50 hover:bg-blue-50/20 transition-colors">
+                    <td className="p-5"><b>{new Date(rec.date).toLocaleDateString()}</b><br/><span className="text-slate-400 font-normal">{rec.patient?.name}</span></td>
+                    <td className="p-2 font-black text-blue-700 text-sm">{calcDev(rec).toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderUp?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderInL?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderInR?.toFixed(1)}</td>
+                    <td className="p-2 font-mono text-green-600 font-bold">{rec.scoreWaistHip?.toFixed(1)}</td>
+                    <td className="p-2 font-mono text-purple-600 font-bold">{rec.scoreAS?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreGreaterTro?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreElbowRatio?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulder?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreEar?.toFixed(1)}</td>
+                    <td className="p-2 font-mono text-pink-600 font-bold">{rec.scoreFace?.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
 
-      {/* フッター */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-8 shadow-2xl rounded-t-[3rem] z-50 flex justify-between items-center">
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-8 shadow-2xl rounded-t-[3rem] z-50 flex justify-between items-center border-t border-white/10">
         <div><p className="text-[10px] text-slate-400 font-bold uppercase mb-1 tracking-widest">RE:SET Deviation</p><p className="text-5xl font-black text-blue-400 tracking-tighter">
           {calcDev({
             scoreShoulderUp: examData["肩上"]?.score, scoreShoulderInL: examData["肩内旋左"], scoreShoulderInR: examData["肩内旋右"], scoreWaistHip: examData["ウエスト・お尻"],
@@ -203,9 +234,9 @@ export default function Home() {
           }).toFixed(1)}
         </p></div>
         <button onClick={async () => {
-          const res = await saveRecord({ ...basicInfo, examData, counselingMemo: memos.counseling, drawingData, imagesBefore, imagesAfter, count: basicInfo.count });
-          if (res.success) { alert("大切な記録を保存しました。"); setHistory(await getRecords()); }
-        }} className="bg-blue-600 px-10 py-5 rounded-2xl font-bold shadow-lg active:scale-95 transition-all">保存</button>
+          const res = await saveRecord({ ...basicInfo, examData, counselingMemo: memos.counseling, treatmentMemo: memos.treatment, drawingData, imagesBefore, imagesAfter, count: basicInfo.count });
+          if (res.success) { alert("美しい変化を金庫に記録しました。"); setHistory(await getRecords()); }
+        }} className="bg-blue-600 hover:bg-blue-500 px-10 py-5 rounded-2xl font-bold shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-lg">保存</button>
       </footer>
     </div>
   );
