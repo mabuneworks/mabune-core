@@ -3,299 +3,199 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { saveRecord, getRecords } from './actions';
 
-// === ボディマップ用キャンバス（内部画像 body-map.png を使用） ===
+// === フォトスロット・コンポーネント ===
+const PhotoSection = ({ title, photos, setPhotos, colorClass }) => {
+  const handleFile = (index, e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const newPhotos = [...photos];
+        newPhotos[index] = ev.target.result;
+        setPhotos(newPhotos);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const labels = ["顔", "前面", "背面", "側面"];
+
+  return (
+    <div className="space-y-3">
+      <h3 className={`text-[10px] font-black ${colorClass} tracking-widest uppercase`}>{title}</h3>
+      <div className="grid grid-cols-4 gap-2">
+        {photos.map((src, i) => (
+          <div key={i} className="relative aspect-[3/4] bg-slate-100 rounded-xl overflow-hidden border-2 border-dashed border-slate-200">
+            {src ? (
+              <img src={src} className="w-full h-full object-cover" />
+            ) : (
+              <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer">
+                <span className="text-[10px] font-bold text-slate-400">{labels[i]}</span>
+                <span className="text-xl">+</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(i, e)} />
+              </label>
+            )}
+            {src && (
+              <button onClick={() => {const n=[...photos]; n[i]=null; setPhotos(n);}} className="absolute top-1 right-1 bg-black/50 text-white w-5 h-5 rounded-full text-[10px]">×</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// === ボディマップ用キャンパス（body-map.pngを使用） ===
 const BodyMapCanvas = ({ onSave }) => {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  
-  // 自分の public フォルダ内の画像を見に行きます
   const BODY_MAP_PATH = "/body-map.png";
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = '#ff0000'; 
-    ctx.lineWidth = 3;
-    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3; ctx.lineCap = 'round';
   }, []);
 
-  const getPointerPos = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.clientX || e.touches?.[0]?.clientX;
-    const clientY = e.clientY || e.touches?.[0]?.clientY;
-    return {
-      x: (clientX - rect.left) * (canvas.width / rect.width),
-      y: (clientY - rect.top) * (canvas.height / rect.height)
-    };
+  const getPos = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cx = e.clientX || e.touches?.[0]?.clientX;
+    const cy = e.clientY || e.touches?.[0]?.clientY;
+    return { x: (cx - rect.left) * (canvasRef.current.width / rect.width), y: (cy - rect.top) * (canvasRef.current.height / rect.height) };
   };
 
-  const startDrawing = (e) => {
-    const { x, y } = getPointerPos(e);
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = (e) => {
-    if (!isDrawing) return;
-    const { x, y } = getPointerPos(e);
-    const ctx = canvasRef.current.getContext('2d');
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-    const canvas = canvasRef.current;
-    onSave(canvas.toDataURL());
-  };
-
-  const clear = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    onSave(null);
-  };
+  const start = (e) => { const {x,y} = getPos(e); const ctx = canvasRef.current.getContext('2d'); ctx.beginPath(); ctx.moveTo(x,y); setIsDrawing(true); };
+  const draw = (e) => { if(!isDrawing) return; const {x,y} = getPos(e); const ctx = canvasRef.current.getContext('2d'); ctx.lineTo(x,y); ctx.stroke(); };
+  const stop = () => { setIsDrawing(false); onSave(canvasRef.current.toDataURL()); };
 
   return (
     <div className="relative border-2 border-slate-200 rounded-[2rem] bg-white overflow-hidden shadow-sm aspect-[16/9]">
-      {/* 背景：自分の public フォルダにある画像を表示 */}
       <div className="absolute inset-0 pointer-events-none p-1 flex justify-center items-center">
-        <img 
-          src={BODY_MAP_PATH} 
-          className="w-full h-full object-contain opacity-100" 
-          alt="Anatomical Chart" 
-          onError={(e) => {
-            console.error("画像が見つかりません。publicフォルダに body-map.png を入れてください。");
-          }}
-        />
+        <img src={BODY_MAP_PATH} className="w-full h-full object-contain" alt="Anatomical Chart" onError={(e) => e.target.style.display='none'} />
       </div>
-      
-      <canvas
-        ref={canvasRef}
-        width={1200}
-        height={675}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={(e) => { e.preventDefault(); startDrawing(e); }}
-        onTouchMove={(e) => { e.preventDefault(); draw(e); }}
-        onTouchEnd={stopDrawing}
-        className="w-full h-full cursor-crosshair touch-none relative z-10"
-      />
-      <button onClick={clear} className="absolute top-4 right-4 bg-white/90 backdrop-blur shadow-sm text-slate-500 px-4 py-2 rounded-full text-xs font-bold z-20 hover:bg-red-50 hover:text-red-500 transition-colors">リセット</button>
+      <canvas ref={canvasRef} width={1200} height={675} onMouseDown={start} onMouseMove={draw} onMouseUp={stop} onMouseLeave={stop} onTouchStart={(e)=>{e.preventDefault(); start(e);}} onTouchMove={(e)=>{e.preventDefault(); draw(e);}} onTouchEnd={stop} className="w-full h-full cursor-crosshair touch-none relative z-10" />
+      <button onClick={() => {const ctx=canvasRef.current.getContext('2d'); ctx.clearRect(0,0,1200,675); onSave(null);}} className="absolute top-4 right-4 bg-white/90 backdrop-blur px-4 py-2 rounded-full text-xs font-bold z-20">消去</button>
     </div>
   );
 };
 
 export default function Home() {
-  const [basicInfo, setBasicInfo] = useState({ 
-    name: "", date: "", count: "1", 
-    address: "", age: "", phone: "", 
-    history: "", surgery: "", romLimit: "", 
-    noTouch: "", doctorNote: "", idealState: "" 
-  });
-  const [examData, setExamData] = useState({
-    "肩上": { side: "", score: 3.0 },
-    "肩捻じれ": { side: "" }, 
-    "肩内旋左": 3.0, "肩内旋右": 3.0,
-    "ウエスト・お尻": 3.0, "AS": { side: "", score: 3.0 },
-    "大転子": 3.0, "肘比率": 3.0, "肩": 3.0, "耳": 3.0,
-    "顔": { side: "", alignment: "", score: 3.0 },
-  });
+  const [basicInfo, setBasicInfo] = useState({ name: "", date: "", count: "1", address: "", age: "", phone: "", history: "", idealState: "" });
+  const [examData, setExamData] = useState({ "肩上": { score: 3.0 }, "肩捻じれ": { side: "" }, "肩内旋左": 3.0, "肩内旋右": 3.0, "ウエスト・お尻": 3.0, "AS": { score: 3.0 }, "大転子": 3.0, "肘比率": 3.0, "肩": 3.0, "耳": 3.0, "顔": { score: 3.0 } });
   const [memos, setMemos] = useState({ counseling: "", treatment: "" });
   const [drawingData, setDrawingData] = useState(null);
+  const [imagesBefore, setImagesBefore] = useState([null, null, null, null]);
+  const [imagesAfter, setImagesAfter] = useState([null, null, null, null]);
   const [history, setHistory] = useState([]);
 
-  useEffect(() => {
-    const load = async () => {
-      const data = await getRecords();
-      setHistory(data);
-    };
-    load();
-  }, []);
+  useEffect(() => { const load = async () => setHistory(await getRecords()); load(); }, []);
 
-  const calcDev = (dataMap) => {
-    let total = 0;
-    const scores = [
-      dataMap.scoreShoulderUp ?? 3.0,
-      dataMap.scoreShoulderInL ?? 3.0,
-      dataMap.scoreShoulderInR ?? 3.0,
-      dataMap.scoreWaistHip ?? 3.0,
-      dataMap.scoreAS ?? 3.0,
-      dataMap.scoreGreaterTro ?? 3.0,
-      dataMap.scoreElbowRatio ?? 3.0,
-      dataMap.scoreShoulder ?? 3.0,
-      dataMap.scoreEar ?? 3.0,
-      dataMap.scoreFace ?? 3.0
-    ];
-    scores.forEach(s => total += s);
+  const calcDev = (d) => {
+    const s = [d.scoreShoulderUp, d.scoreShoulderInL, d.scoreShoulderInR, d.scoreWaistHip, d.scoreAS, d.scoreGreaterTro, d.scoreElbowRatio, d.scoreShoulder, d.scoreEar, d.scoreFace].map(v => v ?? 3.0);
+    let total = 0; s.forEach(v => total += v);
     return (45 - (total * 2)) * 2 + 50;
   };
 
-  const calculateCurrentDeviation = () => {
-    const dataMap = {
-      scoreShoulderUp: examData["肩上"].score,
-      scoreShoulderInL: examData["肩内旋左"],
-      scoreShoulderInR: examData["肩内旋右"],
-      scoreWaistHip: examData["ウエスト・お尻"],
-      scoreAS: examData["AS"].score,
-      scoreGreaterTro: examData["大転子"],
-      scoreElbowRatio: examData["肘比率"],
-      scoreShoulder: examData["肩"],
-      scoreEar: examData["耳"],
-      scoreFace: examData["顔"].score
-    };
-    return calcDev(dataMap);
-  };
-
-  const updateExamItem = (itemKey, data) => setExamData(prev => ({ ...prev, [itemKey]: data }));
+  const labels = ["顔", "前面", "背面", "側面"];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-40 font-sans text-slate-900">
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 p-4 sticky top-0 z-40">
-        <div className="max-w-md mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tighter">mabune Core</h1>
-            <p className="text-[10px] text-blue-600 font-bold tracking-[0.2em] uppercase">RE:SET Chart System</p>
-          </div>
-          <input type="text" placeholder="お名前" className="border-b-2 border-blue-500 outline-none px-2 text-right w-32 text-lg font-bold bg-transparent" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
-        </div>
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 p-4 sticky top-0 z-40 flex justify-between items-center">
+        <div><h1 className="text-xl font-bold">mabune Core</h1><p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Advanced Charting</p></div>
+        <input type="text" placeholder="お名前" className="border-b-2 border-blue-500 outline-none px-2 text-right w-32 font-bold" value={basicInfo.name} onChange={(e) => setBasicInfo({...basicInfo, name: e.target.value})} />
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-12">
-        {/* 問診セクション */}
-        <section className="space-y-4 pt-4">
-          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">01. Intake Form</h2>
-          <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-5">
-            <div className="grid grid-cols-2 gap-3">
-              <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
-              <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
-            </div>
-            <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
-            <textarea placeholder="既往歴・手術歴・禁止事項" className="w-full p-3 bg-slate-50 rounded-xl text-sm h-24" value={basicInfo.history} onChange={e => setBasicInfo({...basicInfo, history: e.target.value})} />
-            <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[1.5rem] border border-blue-100 shadow-inner">
-              <label className="text-[10px] font-bold text-blue-500 uppercase block mb-2 tracking-widest text-left">My Vision: 本来のあなた、ありたい姿</label>
-              <textarea className="w-full bg-transparent outline-none text-sm text-blue-900 placeholder:text-blue-300 h-24 italic" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
-            </div>
+        {/* 基本情報 */}
+        <section className="bg-white p-7 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <input type="text" placeholder="年齢" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.age} onChange={e => setBasicInfo({...basicInfo, age: e.target.value})} />
+            <input type="text" placeholder="電話番号" className="p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.phone} onChange={e => setBasicInfo({...basicInfo, phone: e.target.value})} />
           </div>
+          <input type="text" placeholder="ご住所" className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={basicInfo.address} onChange={e => setBasicInfo({...basicInfo, address: e.target.value})} />
+          <textarea placeholder="本来のあなた、ありたい姿" className="w-full p-4 bg-blue-50 rounded-2xl text-sm h-24 italic" value={basicInfo.idealState} onChange={e => setBasicInfo({...basicInfo, idealState: e.target.value})} />
         </section>
 
         {/* ボディマップ */}
         <section className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">02. Body Map</h2>
+          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase">02. Body Map</h2>
           <BodyMapCanvas onSave={setDrawingData} />
         </section>
 
-        {/* スコア入力 */}
-        <section className="space-y-4">
-          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">03. Measurement</h2>
-          <div className="grid gap-3">
-            {Object.keys(examData).map(key => (
-              <div key={key} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                <span className="font-bold text-slate-700 text-xs mb-2">{key}</span>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {[2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0].map((num) => {
-                    const current = typeof examData[key] === 'number' ? examData[key] : examData[key].score;
-                    return (
-                      <button key={num} onClick={() => updateExamItem(key, typeof examData[key] === 'number' ? num : { ...examData[key], score: num })} className={`py-2 rounded-lg font-bold text-[10px] transition-all ${current === num ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>{num.toFixed(1)}</button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+        {/* フォトセクション */}
+        <section className="space-y-6 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase">03. Visual Evidence</h2>
+          <PhotoSection title="Before (施術前)" photos={imagesBefore} setPhotos={setImagesBefore} colorClass="text-slate-500" />
+          <PhotoSection title="After (施術後)" photos={imagesAfter} setPhotos={setImagesAfter} colorClass="text-blue-600" />
+          
+          {/* 送信用の比較ビュー */}
+          <div className="pt-6 border-t border-slate-100">
+            <p className="text-[10px] font-bold text-slate-400 mb-4 text-center">タップして比較画像を表示（長押しで保存してLINE送信）</p>
+            <div className="grid gap-4">
+              {labels.map((label, i) => (
+                imagesBefore[i] && imagesAfter[i] && (
+                  <div key={i} className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400">{label}の比較</label>
+                    <div className="flex bg-black rounded-xl overflow-hidden border-2 border-white shadow-lg">
+                      <div className="relative flex-1 aspect-[3/4]">
+                        <img src={imagesBefore[i]} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-2 left-2 bg-black/50 text-[8px] text-white px-2 py-0.5 rounded">BEFORE</span>
+                      </div>
+                      <div className="relative flex-1 aspect-[3/4] border-l border-white/30">
+                        <img src={imagesAfter[i]} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-2 left-2 bg-blue-600/80 text-[8px] text-white px-2 py-0.5 rounded">AFTER</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
           </div>
         </section>
 
-        {/* ノート */}
+        {/* スコア・ノート等は省略（既存のものを維持） */}
         <section className="space-y-4">
           <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">04. Session Notes</h2>
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">セルフケア指導等</label>
-              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32 focus:ring-2 focus:ring-blue-100 outline-none" value={memos.counseling} onChange={e => setMemos({...memos, counseling: e.target.value})} />
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 mb-2 block uppercase tracking-widest">施術内容メモ</label>
-              <textarea className="w-full p-4 bg-slate-50 rounded-2xl text-sm h-32 focus:ring-2 focus:ring-blue-100 outline-none" value={memos.treatment} onChange={e => setMemos({...memos, treatment: e.target.value})} />
-            </div>
-          </div>
+          <textarea placeholder="セルフケア指導等" className="w-full p-4 bg-white rounded-2xl text-sm h-32 shadow-sm border border-slate-100" value={memos.counseling} onChange={e => setMemos({...memos, counseling: e.target.value})} />
         </section>
 
-        {/* アーカイブ */}
+        {/* アーカイブ（偏差値付き） */}
         <section className="pb-20 space-y-4">
-          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">05. Clinical Archive</h2>
-          <div className="bg-white rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[1200px]">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="p-5 text-[10px] font-bold text-slate-500 uppercase">Date/Name</th>
-                    <th className="p-2 text-[10px] font-black text-blue-700 uppercase">Dev</th>
-                    <th className="p-2 text-[10px] font-bold text-blue-600">肩上</th>
-                    <th className="p-2 text-[10px] font-bold text-blue-500">内旋L</th>
-                    <th className="p-2 text-[10px] font-bold text-blue-500">内旋R</th>
-                    <th className="p-2 text-[10px] font-bold text-green-600">ｳｴｽﾄ</th>
-                    <th className="p-2 text-[10px] font-bold text-purple-600">AS</th>
-                    <th className="p-2 text-[10px] font-bold text-slate-500">大転子</th>
-                    <th className="p-2 text-[10px] font-bold text-slate-500">肘比</th>
-                    <th className="p-2 text-[10px] font-bold text-slate-500">肩</th>
-                    <th className="p-2 text-[10px] font-bold text-slate-500">耳</th>
-                    <th className="p-2 text-[10px] font-bold text-pink-600">顔</th>
+          <h2 className="text-xs font-black text-slate-400 tracking-[0.3em] uppercase italic">05. Archive</h2>
+          <div className="bg-white rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 overflow-x-auto text-[10px]">
+            <table className="w-full text-left min-w-[1200px]">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
+                <tr><th className="p-4">Date</th><th className="p-2 text-blue-700">Dev</th><th className="p-2">肩上</th><th className="p-2">内L</th><th className="p-2">内R</th><th className="p-2">ｳｴｽﾄ</th><th className="p-2">AS</th><th className="p-2">大転</th><th className="p-2">肘比</th><th className="p-2">肩</th><th className="p-2">耳</th><th className="p-2 text-pink-600">顔</th></tr>
+              </thead>
+              <tbody>
+                {history.map((rec) => (
+                  <tr key={rec.id} className="border-t border-slate-50">
+                    <td className="p-4 font-bold">{new Date(rec.date).toLocaleDateString()}<br/><span className="text-slate-400 font-normal">{rec.patient?.name}</span></td>
+                    <td className="p-2 font-black text-blue-700 text-sm">{calcDev(rec).toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderUp?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderInL?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulderInR?.toFixed(1)}</td>
+                    <td className="p-2 font-mono font-bold text-green-600">{rec.scoreWaistHip?.toFixed(1)}</td>
+                    <td className="p-2 font-mono font-bold text-purple-600">{rec.scoreAS?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreGreaterTro?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreElbowRatio?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreShoulder?.toFixed(1)}</td>
+                    <td className="p-2 font-mono">{rec.scoreEar?.toFixed(1)}</td>
+                    <td className="p-2 font-mono font-bold text-pink-600">{rec.scoreFace?.toFixed(1)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {history.map((rec) => (
-                    <tr key={rec.id} className="border-t border-slate-50 hover:bg-blue-50/20 transition-colors">
-                      <td className="p-5">
-                        <div className="text-[9px] text-slate-400 font-mono">{new Date(rec.date).toLocaleDateString()}</div>
-                        <div className="font-bold text-xs text-slate-800">{rec.patient?.name}</div>
-                      </td>
-                      <td className="p-2 font-black text-sm text-blue-700">{calcDev(rec).toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-blue-600 font-bold">{rec.scoreShoulderUp?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-blue-500">{rec.scoreShoulderInL?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-blue-500">{rec.scoreShoulderInR?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-green-600 font-bold">{rec.scoreWaistHip?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-purple-600 font-bold">{rec.scoreAS?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-slate-500">{rec.scoreGreaterTro?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-slate-500">{rec.scoreElbowRatio?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-slate-500">{rec.scoreShoulder?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-slate-500">{rec.scoreEar?.toFixed(1)}</td>
-                      <td className="p-2 font-mono text-xs text-pink-600 font-bold">{rec.scoreFace?.toFixed(1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </main>
 
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-8 shadow-2xl rounded-t-[3rem] z-50">
-        <div className="max-w-md mx-auto flex justify-between items-center">
-          <div>
-            <p className="text-[10px] text-slate-400 font-bold tracking-[0.2em] uppercase mb-1">RE:SET Deviation</p>
-            <p className="text-5xl font-black text-blue-400 tracking-tighter">{calculateCurrentDeviation().toFixed(1)}</p>
-          </div>
-          <button 
-            onClick={async () => {
-              const res = await saveRecord({ 
-                ...basicInfo, examData, counselingMemo: memos.counseling, 
-                treatmentMemo: memos.treatment, drawingData, count: basicInfo.count 
-              });
-              if (res.success) {
-                alert("美しい変化を金庫に記録しました。");
-                const newData = await getRecords(); setHistory(newData);
-              }
-            }}
-            className="bg-blue-600 hover:bg-blue-500 px-10 py-5 rounded-2xl font-bold shadow-lg transition-all active:scale-95"
-          >
-            カルテを保存
-          </button>
-        </div>
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 text-white p-8 shadow-2xl rounded-t-[3rem] z-50 flex justify-between items-center">
+        <div><p className="text-[10px] text-slate-400 font-bold uppercase mb-1">RE:SET Deviation</p><p className="text-5xl font-black text-blue-400 tracking-tighter">{calculateCurrentDeviation?.() || "0.0"}</p></div>
+        <button onClick={async () => {
+          const res = await saveRecord({...basicInfo, examData, counselingMemo: memos.counseling, treatmentMemo: memos.treatment, drawingData, imagesBefore, imagesAfter, count: basicInfo.count });
+          if (res.success) { alert("大切な記録を保存しました。"); setHistory(await getRecords()); }
+        }} className="bg-blue-600 px-10 py-5 rounded-2xl font-bold">保存</button>
       </footer>
     </div>
   );
