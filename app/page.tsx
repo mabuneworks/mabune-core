@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 // 初期状態
 const initialState = { name: '', birth_date: '', notes: '', chart_image: null };
