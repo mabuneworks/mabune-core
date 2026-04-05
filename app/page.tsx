@@ -8,21 +8,21 @@ const initialState = { name: '', birth_date: '', notes: '', chart_image: null };
 
 export default function Home() {
   const [view, setView] = useState<'dashboard' | 'edit'>('dashboard');
-  const [patients, setPatients] = useState<any[]>([]);
+  const [patient, setpatient] = useState<any[]>([]);
   const [formData, setFormData] = useState(initialState);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // 1. 患者一覧の取得
   useEffect(() => {
-    fetchPatients();
+    fetchpatient();
   }, []);
 
-  const fetchPatients = async () => {
+  const fetchpatient = async () => {
     const { data, error } = await supabase
-      .from('patients')
+      .from('patient')
       .select('*')
       .order('last_visit', { ascending: false });
-    if (!error && data) setPatients(data);
+    if (!error && data) setpatient(data);
   };
 
   // 2. 新規作成
@@ -43,16 +43,16 @@ export default function Home() {
 
     let error;
     if (selectedId) {
-      const { error: err } = await supabase.from('patients').update(payload).eq('id', selectedId);
+      const { error: err } = await supabase.from('patient').update(payload).eq('id', selectedId);
       error = err;
     } else {
-      const { error: err } = await supabase.from('patients').insert([payload]);
+      const { error: err } = await supabase.from('patient').insert([payload]);
       error = err;
     }
 
     if (!error) {
       alert('保存しました');
-      fetchPatients();
+      fetchpatient();
       setView('dashboard');
     } else {
       alert('保存に失敗しました');
@@ -73,8 +73,8 @@ export default function Home() {
 
         <div className="space-y-4">
           <h2 className="text-lg font-semibold border-b pb-2">保存済みのカルテ</h2>
-          {patients.length === 0 && <p className="text-gray-500">データがありません</p>}
-          {patients.map((p) => (
+          {patient.length === 0 && <p className="text-gray-500">データがありません</p>}
+          {patient.map((p) => (
             <div 
               key={p.id}
               onClick={() => {
