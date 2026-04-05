@@ -69,11 +69,28 @@ export default function MabuneFullChart() {
     setSelectedId(p.id);
     setName(p.name);
     setBirthDate(p.birth_date || '');
-    setChartData(p.chart_data || {
-      address: '', phone: '', mainComplaint: '', history: '',
-      inspection: { head: '', shoulder: '', pelvis: '', foot: '', notes: '' },
-      treatmentRecord: '', advice: ''
+
+    // 安全装置：古いデータ形式を新しい形式に変換する
+    const rawData = p.chart_data || {};
+    
+    // もし inspection が文字だったら、オブジェクト形式に変換してあげる
+    let normalizedInspection = { head: '', shoulder: '', pelvis: '', foot: '', notes: '' };
+    if (typeof rawData.inspection === 'string') {
+      normalizedInspection.notes = rawData.inspection; // 古い文字データはメモ欄に避難
+    } else if (rawData.inspection) {
+      normalizedInspection = { ...normalizedInspection, ...rawData.inspection };
+    }
+
+    setChartData({
+      address: rawData.address || '',
+      phone: rawData.phone || '',
+      mainComplaint: rawData.mainComplaint || '',
+      history: rawData.history || '',
+      inspection: normalizedInspection,
+      treatmentRecord: rawData.treatmentRecord || '',
+      advice: rawData.advice || ''
     });
+
     setView('edit');
     setActiveTab('basic');
   };
