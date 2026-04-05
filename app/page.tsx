@@ -5,53 +5,54 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-// タブの種類を定義
-type TabType = 'basic' | 'counseling' | 'inspection' | 'treatment';
-
-export default function MabuneFullChart() {
+export default function MabuneUltimateChart() {
   const [view, setView] = useState<'list' | 'edit'>('list');
-  const [activeTab, setActiveTab] = useState<TabType>('basic');
   const [patients, setPatients] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  
-  // 基本情報
+
+  // --- プロ仕様：ゆかりさんの現場データ ---
   const [name, setName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
+  const [measurements, setMeasurements] = useState({ waist: 0, hip: 0, under: 0 }); // 単位: cm
   
-  // 拡張データ（すべて chart_data に保存）
-  const [chartData, setChartData] = useState({
-    address: '',
-    phone: '',
-    mainComplaint: '', // 主訴
-    history: '',        // 既往歴
-    inspection: {       // 検査・姿勢分析
-      head: '',
-      shoulder: '',
-      pelvis: '',
-      foot: '',
-      notes: ''
-    },
-    treatmentRecord: '', // 本日の施術
-    advice: ''           // アフターケア
+  // 7段階評価 (2.0 〜 5.0)
+  const [inspections, setInspections] = useState({
+    posture: 3.5,
+    symmetry: 3.5,
+    flexibility: 3.5,
+    aura: 3.5
   });
 
-  // データの読み込み
-  const fetchPatients = async () => {
-    const { data, error } = await supabase
-      .from('patient')
-      .select('*')
-      .order('last_visit', { ascending: false });
-    if (!error && data) setPatients(data);
+  // 画像：Before 4枚 / After 4枚
+  const [images, setImages] = useState({
+    before: ['', '', '', ''],
+    after: ['', '', '', '']
+  });
+
+  // --- 美の偏差値 関数 (Beauty Deviation Score) ---
+  const calculateBeautyScore = () => {
+    const vals = Object.values(inspections);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    // 3.5を標準(偏差値50)とし、評価値の振れ幅を計算する独自の関数
+    const score = 50 + (avg - 3.5) * 20;
+    return Math.round(score * 10) / 10;
   };
 
   useEffect(() => { fetchPatients(); }, []);
 
-  // 保存処理
+  const fetchPatients = async () => {
+    const { data } = await supabase.from('patient').select('*').order('last_visit', { ascending: false });
+    if (data) setPatients(data);
+  };
+
   const handleSave = async () => {
+    const beautyScore = calculateBeautyScore();
+    const sessionData = { measurements, inspections, images, beautyScore, date: new Date().toISOString() };
+    
+    // 履歴管理（アーカイブ）
+    const prevHistory = patients.find(p => p.id === selectedId)?.chart_data?.history || [];
     const payload = { 
       name, 
-      birth_date: birthDate, 
-      chart_data: chartData, 
+      chart_data: { current: sessionData, history: [...prevHistory, sessionData] },
       last_visit: new Date().toISOString() 
     };
 
@@ -60,60 +61,20 @@ export default function MabuneFullChart() {
     } else {
       await supabase.from('patient').insert([payload]);
     }
-    
     setView('list');
     fetchPatients();
-  };
-
-  const openChart = (p: any) => {
-    setSelectedId(p.id);
-    setName(p.name);
-    setBirthDate(p.birth_date || '');
-
-    // 安全装置：古いデータ形式を新しい形式に変換する
-    const rawData = p.chart_data || {};
-    
-    // もし inspection が文字だったら、オブジェクト形式に変換してあげる
-    let normalizedInspection = { head: '', shoulder: '', pelvis: '', foot: '', notes: '' };
-    if (typeof rawData.inspection === 'string') {
-      normalizedInspection.notes = rawData.inspection; // 古い文字データはメモ欄に避難
-    } else if (rawData.inspection) {
-      normalizedInspection = { ...normalizedInspection, ...rawData.inspection };
-    }
-
-    setChartData({
-      address: rawData.address || '',
-      phone: rawData.phone || '',
-      mainComplaint: rawData.mainComplaint || '',
-      history: rawData.history || '',
-      inspection: normalizedInspection,
-      treatmentRecord: rawData.treatmentRecord || '',
-      advice: rawData.advice || ''
-    });
-
-    setView('edit');
-    setActiveTab('basic');
   };
 
   if (view === 'list') {
     return (
       <div className="p-6 bg-slate-50 min-h-screen font-sans">
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl font-serif font-bold text-slate-700">mabune Core <span className="text-sm font-normal text-slate-400">Reception</span></h1>
-          <button 
-            onClick={() => { setSelectedId(null); setView('edit'); }}
-            className="bg-blue-600 text-white px-6 py-2 rounded-full shadow-md hover:bg-blue-700 transition"
-          >
-            ＋ 新規カルテ作成
-          </button>
-        </header>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <h1 className="text-2xl font-serif font-bold text-slate-800 mb-6">mabune Core <span className="text-sm font-light text-slate-400 italic">Management</span></h1>
+        <button onClick={() => { setSelectedId(null); setName(''); setView('edit'); }} className="mb-8 bg-slate-900 text-white px-8 py-3 rounded-full shadow-lg hover:bg-black transition">＋ 新規ゲストを輝かせる</button>
+        <div className="grid gap-4 md:grid-cols-2">
           {patients.map(p => (
-            <div key={p.id} onClick={() => openChart(p)} className="p-5 bg-white rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:border-blue-200 transition">
-              <div className="text-slate-400 text-xs mb-1">ID: {p.id.slice(0,8)}</div>
-              <div className="text-xl font-bold text-slate-800 mb-2">{p.name} 様</div>
-              <div className="text-sm text-slate-500">最終来院: {new Date(p.last_visit).toLocaleDateString()}</div>
+            <div key={p.id} onClick={() => { setSelectedId(p.id); setName(p.name); setView('edit'); }} className="p-6 bg-white rounded-3xl shadow-sm border border-slate-100 cursor-pointer hover:border-blue-300 transition">
+              <div className="text-xl font-bold text-slate-800">{p.name} 様</div>
+              <div className="text-blue-500 text-sm mt-2 font-mono">Beauty Score: {p.chart_data?.current?.beautyScore || '--'}</div>
             </div>
           ))}
         </div>
@@ -122,110 +83,62 @@ export default function MabuneFullChart() {
   }
 
   return (
-    <div className="bg-white min-h-screen flex flex-col">
-      {/* 編集画面ヘッダー */}
-      <header className="px-6 py-4 border-b flex justify-between items-center bg-slate-50 sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setView('list')} className="text-slate-400 hover:text-slate-600">✕ 閉じる</button>
-          <h2 className="text-xl font-bold">{name || '新規カルテ'}</h2>
+    <div className="bg-white min-h-screen">
+      <header className="p-4 border-b flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md z-30">
+        <button onClick={() => setView('list')} className="text-slate-400">✕ 閉じる</button>
+        <div className="text-center">
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="text-lg font-bold text-center border-b focus:outline-none" placeholder="お名前を入力" />
         </div>
-        <button onClick={handleSave} className="bg-green-600 text-white px-8 py-2 rounded-full font-bold shadow-lg">保存する</button>
+        <button onClick={handleSave} className="bg-blue-600 text-white px-6 py-2 rounded-full font-bold">セッション保存</button>
       </header>
 
-      {/* タブメニュー */}
-      <nav className="flex px-6 border-b bg-white overflow-x-auto">
-        {[
-          { id: 'basic', label: '基本情報' },
-          { id: 'counseling', label: 'カウンセリング' },
-          { id: 'inspection', label: '姿勢・検査' },
-          { id: 'treatment', label: '施術・アドバイス' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as TabType)}
-            className={`px-6 py-4 text-sm font-bold whitespace-nowrap border-b-2 transition ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
+      <main className="p-6 max-w-5xl mx-auto space-y-12 pb-24">
+        {/* --- 美の偏差値 --- */}
+        <section className="text-center p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-[3rem]">
+          <h3 className="text-slate-400 text-xs font-bold tracking-widest uppercase mb-2">Current Beauty Deviation</h3>
+          <div className="text-6xl font-serif font-bold text-blue-600">{calculateBeautyScore()}</div>
+        </section>
 
-      <main className="p-6 max-w-4xl mx-auto w-full flex-grow">
-        {activeTab === 'basic' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">お名前</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full text-2xl font-bold p-2 border-b focus:outline-none focus:border-blue-500" placeholder="氏名を入力" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">生年月日</label>
-                <input type="text" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="w-full p-3 bg-slate-50 rounded-lg" placeholder="1980/01/01" />
+        {/* --- 7段階評価：ゆかりさんの目 --- */}
+        <section className="space-y-6">
+          <h3 className="font-bold border-l-4 border-blue-600 pl-4">検査結果 (7段階: 2.0 〜 5.0)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {Object.entries(inspections).map(([key, val]) => (
+              <div key={key}>
+                <div className="flex justify-between mb-2">
+                  <label className="text-sm font-bold text-slate-600 uppercase">{key}</label>
+                  <span className="text-blue-600 font-bold font-mono">{val.toFixed(1)}</span>
+                </div>
+                <input type="range" min="2" max="5" step="0.5" value={val} onChange={(e) => setInspections({...inspections, [key]: parseFloat(e.target.value)})} className="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-blue-600" />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">電話番号</label>
-                <input type="text" value={chartData.phone} onChange={(e) => setChartData({...chartData, phone: e.target.value})} className="w-full p-3 bg-slate-50 rounded-lg" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1">住所</label>
-              <input type="text" value={chartData.address} onChange={(e) => setChartData({...chartData, address: e.target.value})} className="w-full p-3 bg-slate-50 rounded-lg" />
-            </div>
+            ))}
           </div>
-        )}
+        </section>
 
-        {activeTab === 'counseling' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div>
-              <h3 className="font-bold text-slate-700 mb-2">本日のお悩み（主訴）</h3>
-              <textarea value={chartData.mainComplaint} onChange={(e) => setChartData({...chartData, mainComplaint: e.target.value})} className="w-full h-32 p-4 bg-slate-50 rounded-xl focus:outline-none" placeholder="どこが、いつから、どのように痛みますか？" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-700 mb-2">既往歴・健康状態</h3>
-              <textarea value={chartData.history} onChange={(e) => setChartData({...chartData, history: e.target.value})} className="w-full h-32 p-4 bg-slate-50 rounded-xl focus:outline-none" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'inspection' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                {['head', 'shoulder', 'pelvis', 'foot'].map((part) => (
-                  <div key={part}>
-                    <label className="block text-xs font-bold text-slate-400 uppercase">{part}</label>
-                    <input 
-                      type="text" 
-                      value={(chartData.inspection as any)[part]} 
-                      onChange={(e) => setChartData({...chartData, inspection: {...chartData.inspection, [part]: e.target.value}})} 
-                      className="w-full p-2 border-b focus:outline-none"
-                    />
-                  </div>
+        {/* --- Before / After 4枚ずつ --- */}
+        <section className="space-y-8">
+          <h3 className="font-bold border-l-4 border-blue-600 pl-4">Before / After 分析 (各4枚)</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Before */}
+            <div className="space-y-4">
+              <div className="text-xs font-bold text-slate-400 text-center">BEFORE</div>
+              <div className="grid grid-cols-2 gap-2">
+                {images.before.map((img, i) => (
+                  <div key={i} className="aspect-[3/4] bg-slate-100 rounded-2xl flex items-center justify-center text-slate-300 text-xs">Photo {i+1}</div>
                 ))}
               </div>
-              <div className="bg-slate-50 rounded-2xl p-6 flex flex-col justify-center items-center border-2 border-dashed border-slate-200">
-                <span className="text-slate-400 text-sm">ここに姿勢写真を<br/>表示・解析する予定です</span>
+            </div>
+            {/* After */}
+            <div className="space-y-4">
+              <div className="text-xs font-bold text-blue-400 text-center">AFTER</div>
+              <div className="grid grid-cols-2 gap-2">
+                {images.after.map((img, i) => (
+                  <div key={i} className="aspect-[3/4] bg-blue-50 rounded-2xl flex items-center justify-center text-blue-200 text-xs border-2 border-dashed border-blue-200">Photo {i+1}</div>
+                ))}
               </div>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-700 mb-2">身体所見・分析メモ</h3>
-              <textarea value={chartData.inspection.notes} onChange={(e) => setChartData({...chartData, inspection: {...chartData.inspection, notes: e.target.value}})} className="w-full h-32 p-4 bg-slate-50 rounded-xl focus:outline-none" />
-            </div>
           </div>
-        )}
-
-        {activeTab === 'treatment' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <div>
-              <h3 className="font-bold text-slate-700 mb-2">本日のケア・施術内容</h3>
-              <textarea value={chartData.treatmentRecord} onChange={(e) => setChartData({...chartData, treatmentRecord: e.target.value})} className="w-full h-48 p-4 bg-slate-50 rounded-xl focus:outline-none" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-700 mb-2">セルフケア・次回へのアドバイス</h3>
-              <textarea value={chartData.advice} onChange={(e) => setChartData({...chartData, advice: e.target.value})} className="w-full h-32 p-4 bg-green-50 rounded-xl focus:outline-none" />
-            </div>
-          </div>
-        )}
+        </section>
       </main>
     </div>
   );
