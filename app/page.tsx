@@ -1330,19 +1330,19 @@ export default function Page() {
     <div className="min-h-screen bg-white pb-20 text-slate-900 font-black">
       {syncBanner ? <div className="bg-white px-8 pt-6">{syncBanner}</div> : null}
       <header className="sticky top-0 z-30 border-b-4 border-slate-300 bg-white p-4">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => setView('list')} className="rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 md:gap-4">
+            <button type="button" onClick={() => setView('list')} className="shrink-0 rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
               戻る
             </button>
             <input
               value={baseInfo.name}
               onChange={(event) => setBaseInfo((prev) => ({ ...prev, name: event.target.value }))}
               placeholder="氏名"
-              className="rounded-xl border-2 border-slate-300 bg-slate-50 px-4 py-2 text-2xl text-slate-900 font-black outline-none"
+              className="min-w-0 flex-1 rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-lg text-slate-900 font-black outline-none md:max-w-md md:px-4 md:text-2xl"
             />
-            <div className="flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2">
-              <span className="text-slate-900 font-black">受診回数</span>
+            <div className="flex shrink-0 items-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2">
+              <span className="whitespace-nowrap text-slate-900 font-black">受診回数</span>
               <input
                 type="number"
                 min={1}
@@ -1350,11 +1350,11 @@ export default function Page() {
                 onChange={(event) =>
                   setVisitInfo((prev) => ({ ...normalizeSession(prev), visitNumber: Math.max(1, Number(event.target.value) || 1) }))
                 }
-                className="w-16 rounded-md border-2 border-slate-300 bg-slate-50 px-2 py-1 text-slate-900 font-black outline-none"
+                className="w-14 rounded-md border-2 border-slate-300 bg-slate-50 px-2 py-1 text-slate-900 font-black outline-none md:w-16"
               />
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex w-full flex-wrap items-center gap-2 border-t-2 border-slate-200 pt-3 md:w-auto md:border-t-0 md:pt-0">
             <button
               type="button"
               onClick={() => setActiveTab('base')}
@@ -1369,14 +1369,14 @@ export default function Page() {
             >
               受診・検査
             </button>
-            <button type="button" onClick={handleSave} className="rounded-full bg-slate-900 px-8 py-3 text-white font-black">
+            <button type="button" onClick={handleSave} className="rounded-full bg-slate-900 px-6 py-2 text-white font-black md:px-8 md:py-3">
               保存
             </button>
             {selectedId ? (
               <button
                 type="button"
                 onClick={() => void handleDeletePatient()}
-                className="rounded-full border-2 border-red-600 bg-white px-5 py-3 text-red-600 font-black"
+                className="rounded-full border-2 border-red-600 bg-white px-4 py-2 text-red-600 font-black md:px-5 md:py-3"
               >
                 患者削除
               </button>
