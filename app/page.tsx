@@ -677,7 +677,7 @@ export default function Page() {
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
-    ctx.lineWidth = 4;
+    ctx.lineWidth = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? 6 : 4;
     ctx.lineCap = 'round';
     ctx.strokeStyle = '#ef4444';
     ctx.lineTo(x, y);
@@ -1482,99 +1482,105 @@ export default function Page() {
         ) : (
           <section className="space-y-8">
             <h2 className="text-4xl font-black text-slate-900">受診・検査</h2>
-            <div className="grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto]">
-              <div className="space-y-2">
-                <p className="text-sm font-black text-slate-900">受診カルテ（過去回を選ぶと上のフォームに表示されます）</p>
-                <select
-                  value={activeVisitRecordIndex !== null ? String(activeVisitRecordIndex) : 'new'}
-                  onChange={(event) => {
-                    if (event.target.value === 'new') {
-                      createNewVisitRecord();
-                      return;
-                    }
-                    openVisitRecord(Number(event.target.value));
-                  }}
-                  className="w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
-                >
-                  {visitRecords.map((record, index) => (
-                    <option key={`${record.visitNumber}-${index}`} value={index}>
-                      第{record.visitNumber}回 / {record.date || '日付未設定'}
-                    </option>
-                  ))}
-                  <option value="new">新規受診データ</option>
-                </select>
-              </div>
-              <div className="flex flex-col gap-2 self-end md:flex-row md:flex-wrap md:justify-end">
-                <button
-                  type="button"
-                  onClick={createNewVisitRecord}
-                  className="rounded-xl bg-slate-900 px-6 py-2 text-white font-black"
-                >
-                  新規受診を作成
-                </button>
-                {isNewVisitMode && visitRecords.length > 0 ? (
-                  <button type="button" onClick={handleDiscardNewVisit} className="rounded-xl border-2 border-amber-600 bg-amber-50 px-6 py-2 text-amber-900 font-black">
-                    新規を破棄
-                  </button>
-                ) : null}
-                {selectedId && !isNewVisitMode && activeVisitRecordIndex !== null ? (
+            <div className="grid gap-8 max-xl:[grid-template-areas:'body'_'visit'_'date'_'eval'] xl:grid-cols-2 xl:[grid-template-areas:'visit_visit'_'date_date'_'body_eval']">
+              <div className="[grid-area:visit] grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto]">
+                <div className="space-y-2">
+                  <p className="text-sm font-black text-slate-900">受診カルテ（過去回を選ぶと上のフォームに表示されます）</p>
+                  <select
+                    value={activeVisitRecordIndex !== null ? String(activeVisitRecordIndex) : 'new'}
+                    onChange={(event) => {
+                      if (event.target.value === 'new') {
+                        createNewVisitRecord();
+                        return;
+                      }
+                      openVisitRecord(Number(event.target.value));
+                    }}
+                    className="w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
+                  >
+                    {visitRecords.map((record, index) => (
+                      <option key={`${record.visitNumber}-${index}`} value={index}>
+                        第{record.visitNumber}回 / {record.date || '日付未設定'}
+                      </option>
+                    ))}
+                    <option value="new">新規受診データ</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2 self-end md:flex-row md:flex-wrap md:justify-end">
                   <button
                     type="button"
-                    onClick={() => void handleDeleteCurrentVisit()}
-                    className="rounded-xl border-2 border-red-600 bg-white px-6 py-2 text-red-600 font-black"
+                    onClick={createNewVisitRecord}
+                    className="rounded-xl bg-slate-900 px-6 py-2 text-white font-black"
                   >
-                    この受診を削除
+                    新規受診を作成
                   </button>
-                ) : null}
+                  {isNewVisitMode && visitRecords.length > 0 ? (
+                    <button type="button" onClick={handleDiscardNewVisit} className="rounded-xl border-2 border-amber-600 bg-amber-50 px-6 py-2 text-amber-900 font-black">
+                      新規を破棄
+                    </button>
+                  ) : null}
+                  {selectedId && !isNewVisitMode && activeVisitRecordIndex !== null ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteCurrentVisit()}
+                      className="rounded-xl border-2 border-red-600 bg-white px-6 py-2 text-red-600 font-black"
+                    >
+                      この受診を削除
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
-                受診日
-                <input
-                  type="date"
-                  value={safeVisit.date}
-                  onChange={(event) => setVisitInfo((prev) => ({ ...normalizeSession(prev), date: event.target.value }))}
-                  className="mt-2 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
-                />
-              </label>
-              <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
-                支払金額
-                <input
-                  type="number"
-                  value={safeVisit.amount}
-                  onChange={(event) => setVisitInfo((prev) => ({ ...normalizeSession(prev), amount: Number(event.target.value) || 0 }))}
-                  className="mt-2 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
-                />
-              </label>
-            </div>
+              <div className="[grid-area:date] grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
+                  受診日
+                  <input
+                    type="date"
+                    value={safeVisit.date}
+                    onChange={(event) => setVisitInfo((prev) => ({ ...normalizeSession(prev), date: event.target.value }))}
+                    className="mt-2 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
+                  />
+                </label>
+                <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
+                  支払金額
+                  <input
+                    type="number"
+                    value={safeVisit.amount}
+                    onChange={(event) => setVisitInfo((prev) => ({ ...normalizeSession(prev), amount: Number(event.target.value) || 0 }))}
+                    className="mt-2 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
+                  />
+                </label>
+              </div>
 
-            <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-black text-slate-900">人体図</h3>
-                  <button type="button" onClick={clearBodyMap} className="rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
+              <div className="[grid-area:body] space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-2xl font-black text-slate-900 max-xl:text-3xl">人体図</h3>
+                  <button type="button" onClick={clearBodyMap} className="shrink-0 rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
                     消去
                   </button>
                 </div>
-                <div className="relative aspect-[3/4] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50">
-                  <img src="/body-map.png" alt="人体図" className="pointer-events-none absolute inset-0 h-full w-full object-contain p-8 opacity-40" />
-                  <canvas
-                    ref={canvasRef}
-                    width={900}
-                    height={1200}
-                    onPointerDown={beginDraw}
-                    onPointerMove={draw}
-                    onPointerUp={endDraw}
-                    onPointerLeave={endDraw}
-                    onPointerCancel={endDraw}
-                    className="absolute inset-0 h-full w-full cursor-crosshair touch-none"
-                  />
+                <div className="mx-auto w-full max-w-full xl:max-w-none">
+                  <div className="relative mx-auto aspect-[3/4] w-full max-w-[min(100%,calc(85dvh*0.75))] max-h-[85dvh] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-h-none xl:max-w-full">
+                    <img
+                      src="/body-map.png"
+                      alt=""
+                      className="pointer-events-none absolute inset-0 h-full w-full object-contain p-[min(6vw,2rem)] opacity-40 md:p-8"
+                    />
+                    <canvas
+                      ref={canvasRef}
+                      width={900}
+                      height={1200}
+                      onPointerDown={beginDraw}
+                      onPointerMove={draw}
+                      onPointerUp={endDraw}
+                      onPointerLeave={endDraw}
+                      onPointerCancel={endDraw}
+                      className="absolute inset-0 h-full w-full cursor-crosshair touch-none"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="[grid-area:eval] space-y-4">
                 <h3 className="text-2xl font-black text-slate-900">7段階評価</h3>
                 <div className="max-h-[700px] space-y-4 overflow-y-auto pr-2">
                   <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
