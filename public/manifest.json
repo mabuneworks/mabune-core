@@ -1,8 +1,12 @@
 {
   "name": "mabune Core",
   "short_name": "mabune",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "lang": "ja",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
   "icons": [
