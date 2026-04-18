@@ -1624,7 +1624,7 @@ export default function Page() {
                   <div className="mx-auto w-full max-w-[min(100%,56rem)] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-w-full">
                     <div className="relative mx-auto aspect-[3/2] w-full max-h-[min(88vh,92vw)] overflow-hidden xl:max-h-[min(72vh,40rem)]">
                       <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute left-1/2 top-1/2 aspect-[3/4] h-full w-auto -translate-x-1/2 -translate-y-1/2 scale-[1.5]">
+                        <div className="absolute left-1/2 top-1/2 aspect-[3/4] h-full w-auto -translate-x-1/2 -translate-y-1/2 scale-[2]">
                           <img
                             src="/body-map.png"
                             alt=""
