@@ -364,6 +364,8 @@ export default function Page() {
   const [filterAddress, setFilterAddress] = useState('');
   const [filterGender, setFilterGender] = useState('');
   const [isDrawing, setIsDrawing] = useState(false);
+  /** OFF のときはキャンバスがスクロールを阻害しない。ON のときのみ赤ペン。 */
+  const [bodyMapDrawMode, setBodyMapDrawMode] = useState(false);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [netOnline, setNetOnline] = useState(true);
@@ -371,6 +373,7 @@ export default function Page() {
   const [pendingSync, setPendingSync] = useState(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const bodyMapPointersRef = useRef<Set<number>>(new Set());
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const compositeCanvasRef = useRef<HTMLCanvasElement>(null);
   const archiveBaCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -654,11 +657,34 @@ export default function Page() {
     setNewTagInput('');
   };
 
+  const releaseBodyMapPointerCapture = (canvas: HTMLCanvasElement, pointerId: number) => {
+    try {
+      if (canvas.hasPointerCapture(pointerId)) {
+        canvas.releasePointerCapture(pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
   const beginDraw = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!bodyMapDrawMode) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    bodyMapPointersRef.current.add(event.pointerId);
+    if (bodyMapPointersRef.current.size > 1) {
+      setIsDrawing(false);
+      for (const id of bodyMapPointersRef.current) {
+        releaseBodyMapPointerCapture(canvas, id);
+      }
+      bodyMapPointersRef.current.clear();
+      ctx.beginPath();
+      return;
+    }
+
     setIsDrawing(true);
     canvas.setPointerCapture(event.pointerId);
     const rect = canvas.getBoundingClientRect();
@@ -669,7 +695,8 @@ export default function Page() {
   };
 
   const draw = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!bodyMapDrawMode || !isDrawing) return;
+    if (bodyMapPointersRef.current.size !== 1) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -684,12 +711,23 @@ export default function Page() {
     ctx.stroke();
   };
 
-  const endDraw = () => {
+  const endDraw = (event?: PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas && event) {
+      bodyMapPointersRef.current.delete(event.pointerId);
+      releaseBodyMapPointerCapture(canvas, event.pointerId);
+    } else if (canvas) {
+      for (const id of bodyMapPointersRef.current) {
+        releaseBodyMapPointerCapture(canvas, id);
+      }
+      bodyMapPointersRef.current.clear();
+    }
     setIsDrawing(false);
     canvasRef.current?.getContext('2d')?.beginPath();
   };
 
   const clearBodyMap = () => {
+    endDraw();
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -1552,30 +1590,59 @@ export default function Page() {
               </div>
 
               <div className="[grid-area:body] space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-2xl font-black text-slate-900 max-xl:text-3xl">人体図</h3>
-                  <button type="button" onClick={clearBodyMap} className="shrink-0 rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
-                    消去
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={bodyMapDrawMode}
+                      onClick={() => {
+                        setBodyMapDrawMode((v) => !v);
+                        endDraw();
+                      }}
+                      className={`rounded-full border-2 px-4 py-2 text-sm font-black ${
+                        bodyMapDrawMode ? 'border-red-500 bg-red-50 text-red-800' : 'border-slate-300 bg-slate-50 text-slate-900'
+                      }`}
+                    >
+                      描画 {bodyMapDrawMode ? 'ON' : 'OFF'}
+                    </button>
+                    <button type="button" onClick={clearBodyMap} className="shrink-0 rounded-full border-2 border-slate-300 bg-slate-50 px-4 py-2 text-slate-900 font-black">
+                      消去
+                    </button>
+                  </div>
                 </div>
-                <div className="mx-auto w-full max-w-full xl:max-w-none">
-                  <div className="relative mx-auto aspect-[3/4] w-full max-w-[min(100%,calc(85dvh*0.75))] max-h-[85dvh] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-h-none xl:max-w-full">
-                    <img
-                      src="/body-map.png"
-                      alt=""
-                      className="pointer-events-none absolute inset-0 h-full w-full object-contain p-[min(6vw,2rem)] opacity-40 md:p-8"
-                    />
-                    <canvas
-                      ref={canvasRef}
-                      width={900}
-                      height={1200}
-                      onPointerDown={beginDraw}
-                      onPointerMove={draw}
-                      onPointerUp={endDraw}
-                      onPointerLeave={endDraw}
-                      onPointerCancel={endDraw}
-                      className="absolute inset-0 h-full w-full cursor-crosshair touch-none"
-                    />
+                <p className="text-xs font-black leading-relaxed text-slate-600 max-xl:block xl:hidden">
+                  描画OFFのときは図の上でもページをスクロールできます。描くときは「描画ON」にし、二本指を置くと描画を中断してスクロールしやすくなります。
+                </p>
+                <div className="mx-auto w-full max-w-full touch-manipulation xl:max-w-none">
+                  <div className="mx-auto w-full max-w-[min(100%,calc(85dvh*0.75))] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-h-none xl:max-w-full">
+                    <div className="relative mx-auto aspect-[3/4] w-full max-h-[85dvh] xl:max-h-none">
+                      <img
+                        src="/body-map.png"
+                        alt=""
+                        className="pointer-events-none absolute inset-0 h-full w-full object-contain p-0.5 opacity-40"
+                      />
+                      <canvas
+                        ref={canvasRef}
+                        width={900}
+                        height={1200}
+                        onPointerDown={beginDraw}
+                        onPointerMove={draw}
+                        onPointerUp={(e) => endDraw(e)}
+                        onPointerLeave={(e) => endDraw(e)}
+                        onPointerCancel={(e) => endDraw(e)}
+                        className={`absolute inset-0 h-full w-full ${
+                          bodyMapDrawMode ? 'cursor-crosshair touch-none' : 'pointer-events-none touch-auto'
+                        }`}
+                      />
+                    </div>
+                    <div
+                      className="flex min-h-14 w-full touch-pan-y items-center justify-center border-t-2 border-slate-200 bg-slate-100 px-3 py-3 text-center text-xs font-black text-slate-600 select-none xl:hidden"
+                      aria-hidden
+                    >
+                      ↕ この帯を上下にスワイプしてページをスクロール（描画OFF推奨）
+                    </div>
                   </div>
                 </div>
               </div>
