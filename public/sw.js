@@ -1,12 +1,19 @@
 /* global self, caches, fetch */
-const CACHE = 'mabune-shell-v1';
+const CACHE = 'mabune-shell-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((name) => name !== CACHE).map((name) => caches.delete(name))),
+      ),
+    ]),
+  );
 });
 
 self.addEventListener('fetch', (event) => {

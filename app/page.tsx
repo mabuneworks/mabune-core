@@ -659,11 +659,9 @@ export default function Page() {
 
   const releaseBodyMapPointerCapture = (canvas: HTMLCanvasElement, pointerId: number) => {
     try {
-      if (canvas.hasPointerCapture(pointerId)) {
-        canvas.releasePointerCapture(pointerId);
-      }
+      canvas.releasePointerCapture(pointerId);
     } catch {
-      /* ignore */
+      /* capture 未設定の環境・古い WebView など */
     }
   };
 
@@ -686,7 +684,14 @@ export default function Page() {
     }
 
     setIsDrawing(true);
-    canvas.setPointerCapture(event.pointerId);
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+      setIsDrawing(false);
+      bodyMapPointersRef.current.delete(event.pointerId);
+      ctx.beginPath();
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
     const y = (event.clientY - rect.top) * (canvas.height / rect.height);
@@ -1520,8 +1525,8 @@ export default function Page() {
         ) : (
           <section className="space-y-8">
             <h2 className="text-4xl font-black text-slate-900">受診・検査</h2>
-            <div className="grid gap-8 max-xl:[grid-template-areas:'body'_'visit'_'date'_'eval'] xl:grid-cols-2 xl:[grid-template-areas:'visit_visit'_'date_date'_'body_eval']">
-              <div className="[grid-area:visit] grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto]">
+            <div className="flex flex-col gap-8 xl:grid xl:grid-cols-2 xl:gap-8">
+              <div className="order-2 grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto] xl:order-none xl:col-span-2">
                 <div className="space-y-2">
                   <p className="text-sm font-black text-slate-900">受診カルテ（過去回を選ぶと上のフォームに表示されます）</p>
                   <select
@@ -1568,7 +1573,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="[grid-area:date] grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="order-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:order-none xl:col-span-2">
                 <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
                   受診日
                   <input
@@ -1589,7 +1594,7 @@ export default function Page() {
                 </label>
               </div>
 
-              <div className="[grid-area:body] space-y-3">
+              <div className="order-1 space-y-3 xl:order-none">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-2xl font-black text-slate-900 max-xl:text-3xl">人体図</h3>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1616,26 +1621,30 @@ export default function Page() {
                   描画OFFのときは図の上でもページをスクロールできます。描くときは「描画ON」にし、二本指を置くと描画を中断してスクロールしやすくなります。
                 </p>
                 <div className="mx-auto w-full max-w-full touch-manipulation xl:max-w-none">
-                  <div className="mx-auto w-full max-w-[min(100%,calc(85dvh*0.75))] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-h-none xl:max-w-full">
-                    <div className="relative mx-auto aspect-[3/4] w-full max-h-[85dvh] xl:max-h-none">
-                      <img
-                        src="/body-map.png"
-                        alt=""
-                        className="pointer-events-none absolute inset-0 h-full w-full object-contain p-0.5 opacity-40"
-                      />
-                      <canvas
-                        ref={canvasRef}
-                        width={900}
-                        height={1200}
-                        onPointerDown={beginDraw}
-                        onPointerMove={draw}
-                        onPointerUp={(e) => endDraw(e)}
-                        onPointerLeave={(e) => endDraw(e)}
-                        onPointerCancel={(e) => endDraw(e)}
-                        className={`absolute inset-0 h-full w-full ${
-                          bodyMapDrawMode ? 'cursor-crosshair touch-none' : 'pointer-events-none touch-auto'
-                        }`}
-                      />
+                  <div className="mx-auto w-full max-w-[min(100%,56rem)] overflow-hidden rounded-3xl border-4 border-slate-300 bg-slate-50 shadow-inner xl:max-w-full">
+                    <div className="relative mx-auto aspect-[3/2] w-full max-h-[min(88vh,92vw)] overflow-hidden xl:max-h-[min(72vh,40rem)]">
+                      <div className="absolute inset-0 overflow-hidden">
+                        <div className="absolute left-1/2 top-1/2 aspect-[3/4] h-full w-auto -translate-x-1/2 -translate-y-1/2 scale-[1.35]">
+                          <img
+                            src="/body-map.png"
+                            alt=""
+                            className="pointer-events-none absolute inset-0 h-full w-full object-contain p-0 opacity-40"
+                          />
+                          <canvas
+                            ref={canvasRef}
+                            width={900}
+                            height={1200}
+                            onPointerDown={beginDraw}
+                            onPointerMove={draw}
+                            onPointerUp={(e) => endDraw(e)}
+                            onPointerLeave={(e) => endDraw(e)}
+                            onPointerCancel={(e) => endDraw(e)}
+                            className={`absolute inset-0 h-full w-full ${
+                              bodyMapDrawMode ? 'cursor-crosshair touch-none' : 'pointer-events-none touch-auto'
+                            }`}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div
                       className="flex min-h-14 w-full touch-pan-y items-center justify-center border-t-2 border-slate-200 bg-slate-100 px-3 py-3 text-center text-xs font-black text-slate-600 select-none xl:hidden"
@@ -1647,7 +1656,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="[grid-area:eval] space-y-4">
+              <div className="order-4 space-y-4 xl:order-none">
                 <h3 className="text-2xl font-black text-slate-900">7段階評価</h3>
                 <div className="max-h-[700px] space-y-4 overflow-y-auto pr-2">
                   <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
