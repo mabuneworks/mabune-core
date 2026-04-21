@@ -37,6 +37,8 @@ interface Session {
   beautyScore: number;
   treatmentNote: string;
   selfCare: string;
+  /** 受診時の症状・訴えなど（人体図より先に入力） */
+  symptomNote: string;
   bodyMapData: string;
   images: {
     before: Record<ImageKey, string>;
@@ -108,6 +110,7 @@ const createInitialSession = (): Session => ({
   beautyScore: 0,
   treatmentNote: '',
   selfCare: '',
+  symptomNote: '',
   bodyMapData: '',
   images: {
     before: { front: '', side: '', back: '', face: '' },
@@ -221,6 +224,7 @@ function normalizeSession(raw: unknown, visitNumberFallback = 1): Session {
     beautyScore: num(r.beautyScore, 0),
     treatmentNote: str(r.treatmentNote),
     selfCare: str(r.selfCare),
+    symptomNote: str(r.symptomNote),
     bodyMapData: str(r.bodyMapData),
     images: normalizeImages(r.images),
   };
@@ -1526,7 +1530,7 @@ export default function Page() {
           <section className="space-y-8">
             <h2 className="text-4xl font-black text-slate-900">受診・検査</h2>
             <div className="flex flex-col gap-8 xl:grid xl:grid-cols-2 xl:gap-8">
-              <div className="order-2 grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto] xl:order-none xl:col-span-2">
+              <div className="order-1 grid grid-cols-1 gap-4 rounded-3xl border-2 border-slate-300 bg-white p-4 md:grid-cols-[1fr_auto] xl:order-none xl:col-span-2">
                 <div className="space-y-2">
                   <p className="text-sm font-black text-slate-900">受診カルテ（過去回を選ぶと上のフォームに表示されます）</p>
                   <select
@@ -1573,7 +1577,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="order-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:order-none xl:col-span-2">
+              <div className="order-2 grid grid-cols-1 gap-4 md:grid-cols-2 xl:order-none xl:col-span-2">
                 <label className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black">
                   受診日
                   <input
@@ -1594,7 +1598,22 @@ export default function Page() {
                 </label>
               </div>
 
-              <div className="order-1 space-y-3 xl:order-none">
+              <div className="order-3 xl:col-span-2 xl:order-none">
+                <label className="block rounded-3xl border-2 border-slate-300 bg-slate-50 p-4 text-slate-900 font-black shadow-sm">
+                  <span className="text-lg">症状・訴えなど（自由記入）</span>
+                  <textarea
+                    value={safeVisit.symptomNote}
+                    onChange={(event) =>
+                      setVisitInfo((prev) => ({ ...normalizeSession(prev), symptomNote: event.target.value }))
+                    }
+                    placeholder="痛みの部位、きっかけ、時間帯など"
+                    rows={5}
+                    className="mt-3 min-h-[120px] w-full resize-y rounded-xl border-2 border-slate-300 bg-white px-3 py-2 text-base text-slate-900 font-black outline-none placeholder:text-slate-400"
+                  />
+                </label>
+              </div>
+
+              <div className="order-4 space-y-3 xl:order-none">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-2xl font-black text-slate-900 max-xl:text-3xl">人体図</h3>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1656,9 +1675,10 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="order-4 space-y-4 xl:order-none">
+              <div className="order-5 space-y-4 xl:order-none xl:min-w-0">
                 <h3 className="text-2xl font-black text-slate-900">7段階評価</h3>
-                <div className="max-h-[700px] space-y-4 overflow-y-auto pr-2">
+                <div className="max-h-[min(72vh,700px)] overflow-y-auto overflow-x-hidden pr-10 pl-1 [-webkit-overflow-scrolling:touch]">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
                     <div className="mb-3 flex items-center justify-between text-xl font-black text-slate-900">
                       <span>顔</span>
@@ -1831,6 +1851,7 @@ export default function Page() {
                   <p className="text-lg font-black text-slate-900">美の偏差値</p>
                   <p className="text-7xl font-black text-slate-900">{score.score}</p>
                 </div>
+              </div>
               </div>
             </div>
 
