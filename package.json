@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "@mediapipe/tasks-vision": "^1.0.1",
     "@prisma/client": "^6.19.2",
     "@supabase/supabase-js": "^2.101.1",

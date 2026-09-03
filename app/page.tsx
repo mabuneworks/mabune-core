@@ -11,7 +11,13 @@ import {
 } from '../lib/offline-cache';
 import { supabase, supabaseConfigError } from '../lib/supabase';
 import { detectPoseFromImage } from '../lib/pose-detector';
-import { analyzeFrontPosture, analyzeSidePosture } from '../lib/posture-analysis';
+import {
+  analyzeFrontPosture,
+  analyzeSidePosture,
+  PROTOCOL_ITEM_LABELS,
+  PROTOCOL_ITEM_ANCHORS,
+  levelToApproxCm,
+} from '../lib/posture-analysis';
 
 type MetaSide = '左' | '右';
 type FaceType = '捻れ' | '傾き' | 'スライド';
@@ -33,9 +39,12 @@ interface Session {
   /** 7段階評価（Before）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
   numericInspections: Record<string, number>;
   metaInspections: ProtocolMeta;
+  /** Before側で「自動解析を実行」が一度でも成功したか（未実施ならAS以外は初期値のまま＝報告書生成の判定に使う） */
+  postureAnalyzedBefore: boolean;
   /** 7段階評価（After）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
   numericInspectionsAfter: Record<string, number>;
   metaInspectionsAfter: ProtocolMeta;
+  postureAnalyzedAfter: boolean;
   totalSum: number;
   beautyScore: number;
   treatmentNote: string;
@@ -75,18 +84,7 @@ interface Patient {
 
 const numericKeys = ['顔', '肩上', '軸', 'AS', '大転子', '肘', '肩', '耳', '肩内旋左', '肩内旋右'] as const;
 // 表示名のみ「ウエスト」に変更（データ上のキー名は既存カルテとの互換性のため「軸」のまま）。
-const numericKeyLabels: Record<(typeof numericKeys)[number], string> = {
-  顔: '顔',
-  肩上: '肩上',
-  軸: 'ウエスト',
-  AS: 'AS',
-  大転子: '大転子',
-  肘: '肘',
-  肩: '肩',
-  耳: '耳',
-  肩内旋左: '肩内旋左',
-  肩内旋右: '肩内旋右',
-};
+const numericKeyLabels = PROTOCOL_ITEM_LABELS as Record<(typeof numericKeys)[number], string>;
 const imagePairs: { key: ImageKey; label: string }[] = [
   { key: 'front', label: '前面' },
   { key: 'back', label: '背面' },
@@ -121,8 +119,10 @@ const createInitialSession = (): Session => ({
   visitNumber: 1,
   numericInspections: createInitialNumericInspections(),
   metaInspections: createInitialProtocolMeta(),
+  postureAnalyzedBefore: false,
   numericInspectionsAfter: createInitialNumericInspections(),
   metaInspectionsAfter: createInitialProtocolMeta(),
+  postureAnalyzedAfter: false,
   totalSum: 0,
   beautyScore: 0,
   treatmentNote: '',
@@ -154,6 +154,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const str = (value: unknown) => (typeof value === 'string' ? value : '');
 const num = (value: unknown, fallback = 0) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
+const bool = (value: unknown) => value === true;
 const side = (value: unknown): MetaSide => (value === '右' ? '右' : '左');
 const faceType = (value: unknown): FaceType => (value === '傾き' || value === 'スライド' ? value : '捻れ');
 
@@ -217,8 +218,10 @@ function normalizeSession(raw: unknown, visitNumberFallback = 1): Session {
     visitNumber: Math.max(1, Math.floor(num(r.visitNumber, visitNumberFallback))),
     numericInspections,
     metaInspections: normalizeProtocolMeta(r.metaInspections),
+    postureAnalyzedBefore: bool(r.postureAnalyzedBefore),
     numericInspectionsAfter,
     metaInspectionsAfter: normalizeProtocolMeta(r.metaInspectionsAfter),
+    postureAnalyzedAfter: bool(r.postureAnalyzedAfter),
     totalSum: num(r.totalSum, 0),
     beautyScore: num(r.beautyScore, 0),
     treatmentNote: str(r.treatmentNote),
@@ -377,6 +380,10 @@ export default function Page() {
   const [isAnalyzingPosture, setIsAnalyzingPosture] = useState(false);
   const [postureAnalysisSource, setPostureAnalysisSource] = useState<'before' | 'after'>('before');
   const [postureAnalysisMessage, setPostureAnalysisMessage] = useState('');
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportMessage, setReportMessage] = useState('');
+  const [reportText, setReportText] = useState('');
+  const [isSendingReport, setIsSendingReport] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [netOnline, setNetOnline] = useState(true);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -829,12 +836,14 @@ export default function Page() {
               ...prevSafe,
               numericInspections: { ...prevSafe.numericInspections, ...numeric },
               metaInspections: { ...prevSafe.metaInspections, ...meta },
+              postureAnalyzedBefore: true,
             };
           }
           return {
             ...prevSafe,
             numericInspectionsAfter: { ...prevSafe.numericInspectionsAfter, ...numeric },
             metaInspectionsAfter: { ...prevSafe.metaInspectionsAfter, ...meta },
+            postureAnalyzedAfter: true,
           };
         });
       }
@@ -848,6 +857,95 @@ export default function Page() {
       setPostureAnalysisMessage('解析中にエラーが発生しました。時間を置いて再度お試しください。');
     } finally {
       setIsAnalyzingPosture(false);
+    }
+  };
+
+  const buildReportItems = (numeric: Record<string, number>, meta: Session['metaInspections']) =>
+    numericKeys.map((key) => {
+      const level = num(numeric[key], 3.5);
+      const anchor = PROTOCOL_ITEM_ANCHORS[key];
+      const item: { key: string; label: string; level: number; side?: string; type?: string; approxCm?: number } = {
+        key,
+        label: numericKeyLabels[key],
+        level,
+      };
+      if (key === '顔' || key === '肩上' || key === '軸' || key === 'AS') {
+        item.side = meta[`${key}_左右` as '顔_左右' | '肩上_左右' | '軸_左右' | 'AS_左右'];
+      }
+      if (key === '顔') {
+        item.type = meta.顔_種類;
+      }
+      if (anchor) {
+        item.approxCm = levelToApproxCm(level, anchor);
+      }
+      return item;
+    });
+
+  const generateReport = async () => {
+    const safe = normalizeSession(visitInfo);
+    if (!safe.postureAnalyzedBefore || !safe.postureAnalyzedAfter) {
+      setReportMessage('Before・After両方で「自動解析を実行」を済ませてから生成してください（未解析のままだと初期値のまま報告書に使われてしまいます）。');
+      return;
+    }
+    setIsGeneratingReport(true);
+    setReportMessage('');
+    try {
+      const res = await fetch('/api/report/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          before: { score: scoreFromInspections(safe.numericInspections).score, items: buildReportItems(safe.numericInspections, safe.metaInspections) },
+          after: { score: scoreFromInspections(safe.numericInspectionsAfter).score, items: buildReportItems(safe.numericInspectionsAfter, safe.metaInspectionsAfter) },
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { report?: string; error?: string };
+      if (!res.ok || !data.report) {
+        setReportMessage(typeof data.error === 'string' ? data.error : '報告書の生成に失敗しました');
+        return;
+      }
+      setReportText(data.report);
+      setReportMessage('生成しました。内容を確認・編集してから送信してください。');
+    } catch (error) {
+      setReportMessage(error instanceof Error ? error.message : '報告書の生成に失敗しました');
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
+  const sendReportViaLine = async () => {
+    const uid = baseInfo.lineUserId.trim();
+    if (!uid) {
+      setReportMessage('基本情報タブで「LINE userId」を入力し、保存してください。');
+      return;
+    }
+    if (!reportText.trim()) {
+      setReportMessage('先に報告書を生成（または入力）してください。');
+      return;
+    }
+    const safe = normalizeSession(visitInfo);
+    const imageDataUrls = imagePairs.map((pair) => safe.images.comparisons[pair.key]).filter((src) => !!src).slice(0, 4);
+    setIsSendingReport(true);
+    setReportMessage('');
+    try {
+      const res = await fetch('/api/line/push-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineUserId: uid, text: reportText, imageDataUrls }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setReportMessage(typeof data.error === 'string' ? data.error : '公式LINEへの送信に失敗しました');
+        return;
+      }
+      setReportMessage(
+        imageDataUrls.length > 0
+          ? `公式LINEへ報告書と比較画像${imageDataUrls.length}枚を送信しました。`
+          : '公式LINEへ報告書を送信しました（比較画像は未生成のため未送信です。「前後比較画像」で生成すると一緒に送れます）。',
+      );
+    } catch (error) {
+      setReportMessage(error instanceof Error ? error.message : '公式LINEへの送信に失敗しました');
+    } finally {
+      setIsSendingReport(false);
     }
   };
 
@@ -1973,6 +2071,41 @@ export default function Page() {
                   ) : null,
                 )}
               </div>
+            </section>
+
+            <section className="space-y-4 rounded-3xl border-2 border-slate-300 bg-white p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-2xl font-black text-slate-900">AI報告書（患者向け）</h3>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={generateReport}
+                    disabled={isGeneratingReport}
+                    className="rounded-full bg-slate-900 px-6 py-3 text-sm text-white font-black disabled:opacity-50"
+                  >
+                    {isGeneratingReport ? '生成中...' : '報告書を生成（AI）'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendReportViaLine}
+                    disabled={isSendingReport || !reportText.trim()}
+                    className="rounded-full border-2 border-slate-900 px-6 py-3 text-sm text-slate-900 font-black disabled:opacity-50"
+                  >
+                    {isSendingReport ? '送信中...' : '比較画像を添えて公式LINEへ送信'}
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs font-bold text-slate-500">
+                Before/Afterの偏差値・7段階評価の数値からAIが報告文を作成します。送信前に必ず内容を確認・編集してください。
+                画像は上の「前後比較画像」で生成済みのものを一緒に送ります（最大4枚）。
+              </p>
+              {reportMessage ? <p className="whitespace-pre-line text-xs font-bold text-slate-600">{reportMessage}</p> : null}
+              <textarea
+                value={reportText}
+                onChange={(event) => setReportText(event.target.value)}
+                placeholder="「報告書を生成（AI）」を押すか、ここに直接入力してください。"
+                className="h-72 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 font-bold outline-none"
+              />
             </section>
 
             <section className="space-y-4 rounded-3xl border-4 border-purple-300 bg-purple-50 p-6">
