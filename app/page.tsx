@@ -14,7 +14,6 @@ import { detectPoseFromImage } from '../lib/pose-detector';
 import { analyzeFrontPosture, analyzeSidePosture } from '../lib/posture-analysis';
 
 type MetaSide = '左' | '右';
-type MetaPos = '上' | '中' | '下';
 type FaceType = '捻れ' | '傾き' | 'スライド';
 type ImageKey = 'front' | 'side' | 'back' | 'face';
 
@@ -33,13 +32,7 @@ interface Session {
   visitNumber: number;
   /** 7段階評価（Before）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
   numericInspections: Record<string, number>;
-  metaInspections: ProtocolMeta & {
-    肩捻じれ: MetaSide;
-    膝屈曲: { side: MetaSide; cm: number };
-    膝屈曲内旋: { side: MetaSide; cm: number };
-    首: { side: MetaSide; pos: MetaPos };
-    腰: { side: MetaSide; pos: MetaPos };
-  };
+  metaInspections: ProtocolMeta;
   /** 7段階評価（After）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
   numericInspectionsAfter: Record<string, number>;
   metaInspectionsAfter: ProtocolMeta;
@@ -127,14 +120,7 @@ const createInitialSession = (): Session => ({
   amount: 0,
   visitNumber: 1,
   numericInspections: createInitialNumericInspections(),
-  metaInspections: {
-    ...createInitialProtocolMeta(),
-    肩捻じれ: '左',
-    膝屈曲: { side: '左', cm: 0 },
-    膝屈曲内旋: { side: '左', cm: 0 },
-    首: { side: '左', pos: '中' },
-    腰: { side: '左', pos: '中' },
-  },
+  metaInspections: createInitialProtocolMeta(),
   numericInspectionsAfter: createInitialNumericInspections(),
   metaInspectionsAfter: createInitialProtocolMeta(),
   totalSum: 0,
@@ -169,7 +155,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const str = (value: unknown) => (typeof value === 'string' ? value : '');
 const num = (value: unknown, fallback = 0) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 const side = (value: unknown): MetaSide => (value === '右' ? '右' : '左');
-const pos = (value: unknown): MetaPos => (value === '上' || value === '下' ? value : '中');
 const faceType = (value: unknown): FaceType => (value === '傾き' || value === 'スライド' ? value : '捻れ');
 
 function normalizeProtocolMeta(raw: unknown): ProtocolMeta {
@@ -180,37 +165,6 @@ function normalizeProtocolMeta(raw: unknown): ProtocolMeta {
     肩上_左右: side(m.肩上_左右),
     軸_左右: side(m.軸_左右),
     AS_左右: side(m.AS_左右),
-  };
-}
-
-function normalizeMeta(raw: unknown): Session['metaInspections'] {
-  const base = createInitialSession().metaInspections;
-  const m = isRecord(raw) ? raw : {};
-
-  const kneeFlexionRaw = isRecord(m.膝屈曲) ? m.膝屈曲 : isRecord(m.kneeFlexion) ? m.kneeFlexion : {};
-  const kneeInternalRaw = isRecord(m.膝屈曲内旋) ? m.膝屈曲内旋 : isRecord(m.kneeInternalRotation) ? m.kneeInternalRotation : {};
-  const neckRaw = isRecord(m.首) ? m.首 : isRecord(m.neck) ? m.neck : {};
-  const waistRaw = isRecord(m.腰) ? m.腰 : isRecord(m.waist) ? m.waist : {};
-
-  return {
-    ...normalizeProtocolMeta(raw),
-    肩捻じれ: side(m.肩捻じれ),
-    膝屈曲: {
-      side: side((kneeFlexionRaw as Record<string, unknown>).side),
-      cm: num((kneeFlexionRaw as Record<string, unknown>).cm, base.膝屈曲.cm),
-    },
-    膝屈曲内旋: {
-      side: side((kneeInternalRaw as Record<string, unknown>).side),
-      cm: num((kneeInternalRaw as Record<string, unknown>).cm, base.膝屈曲内旋.cm),
-    },
-    首: {
-      side: side((neckRaw as Record<string, unknown>).side),
-      pos: pos((neckRaw as Record<string, unknown>).pos),
-    },
-    腰: {
-      side: side((waistRaw as Record<string, unknown>).side),
-      pos: pos((waistRaw as Record<string, unknown>).pos),
-    },
   };
 }
 
@@ -262,7 +216,7 @@ function normalizeSession(raw: unknown, visitNumberFallback = 1): Session {
     amount: num(r.amount, 0),
     visitNumber: Math.max(1, Math.floor(num(r.visitNumber, visitNumberFallback))),
     numericInspections,
-    metaInspections: normalizeMeta(r.metaInspections),
+    metaInspections: normalizeProtocolMeta(r.metaInspections),
     numericInspectionsAfter,
     metaInspectionsAfter: normalizeProtocolMeta(r.metaInspectionsAfter),
     totalSum: num(r.totalSum, 0),
@@ -1922,94 +1876,6 @@ export default function Page() {
                     AS以外は「画像から自動解析」ボタンで反映される値です（手動での変更はできません）。差分はAfter−Beforeです。
                   </p>
 
-                  {(['膝屈曲', '膝屈曲内旋'] as const).map((key) => (
-                    <div key={key} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
-                      <p className="text-xl font-black text-slate-900">{key}</p>
-                      <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Selector
-                          label="左右"
-                          current={safeVisit.metaInspections[key].side}
-                          options={['左', '右']}
-                          onSelect={(value) =>
-                            setVisitInfo((prev) => ({
-                              ...normalizeSession(prev),
-                              metaInspections: {
-                                ...normalizeSession(prev).metaInspections,
-                                [key]: { ...normalizeSession(prev).metaInspections[key], side: side(value) },
-                              },
-                            }))
-                          }
-                        />
-                        <label className="text-sm font-black text-slate-900">
-                          cm
-                          <input
-                            type="number"
-                            value={safeVisit.metaInspections[key].cm}
-                            onChange={(event) =>
-                              setVisitInfo((prev) => ({
-                                ...normalizeSession(prev),
-                                metaInspections: {
-                                  ...normalizeSession(prev).metaInspections,
-                                  [key]: { ...normalizeSession(prev).metaInspections[key], cm: Number(event.target.value) || 0 },
-                                },
-                              }))
-                            }
-                            className="mt-1 w-full rounded-xl border-2 border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 font-black outline-none"
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-
-                  {(['首', '腰'] as const).map((key) => (
-                    <div key={key} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
-                      <p className="text-xl font-black text-slate-900">{key}</p>
-                      <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Selector
-                          label="左右"
-                          current={safeVisit.metaInspections[key].side}
-                          options={['左', '右']}
-                          onSelect={(value) =>
-                            setVisitInfo((prev) => ({
-                              ...normalizeSession(prev),
-                              metaInspections: {
-                                ...normalizeSession(prev).metaInspections,
-                                [key]: { ...normalizeSession(prev).metaInspections[key], side: side(value) },
-                              },
-                            }))
-                          }
-                        />
-                        <Selector
-                          label="位置"
-                          current={safeVisit.metaInspections[key].pos}
-                          options={['上', '中', '下']}
-                          onSelect={(value) =>
-                            setVisitInfo((prev) => ({
-                              ...normalizeSession(prev),
-                              metaInspections: {
-                                ...normalizeSession(prev).metaInspections,
-                                [key]: { ...normalizeSession(prev).metaInspections[key], pos: pos(value) },
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
-                    <p className="text-xl font-black text-slate-900">肩捻じれ</p>
-                    <div className="mt-2">
-                      <Selector
-                        label="左右"
-                        current={safeVisit.metaInspections.肩捻じれ}
-                        options={['左', '右']}
-                        onSelect={(value) =>
-                          setVisitInfo((prev) => ({ ...normalizeSession(prev), metaInspections: { ...normalizeSession(prev).metaInspections, 肩捻じれ: side(value) } }))
-                        }
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
