@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored MediaPipe runtime (self-hosted wasm loader), not our source.
+    "public/mediapipe/**",
   ]),
 ]);
 
