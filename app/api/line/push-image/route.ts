@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
-
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+
+import { uploadImageToLineBucket } from '../../../../lib/line-image-upload';
 
 export const runtime = 'nodejs';
 
@@ -33,18 +33,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'lineUserId と imageDataUrl が必要です' }, { status: 400 });
     }
 
-    const match = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i.exec(imageDataUrl);
-    if (!match) {
-      return NextResponse.json({ error: 'PNG / JPEG / WebP の Data URL のみ対応しています' }, { status: 400 });
-    }
-    const kind = match[1].toLowerCase();
-    const ext = kind === 'jpeg' || kind === 'jpg' ? 'jpg' : kind === 'webp' ? 'webp' : 'png';
-    const contentType = ext === 'jpg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
-    const buffer = Buffer.from(match[2], 'base64');
-    if (buffer.length > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: '画像が大きすぎます（10MB以下）' }, { status: 400 });
-    }
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceKey) {
@@ -58,24 +46,13 @@ export async function POST(request: Request) {
     }
 
     const admin = createClient(supabaseUrl, serviceKey);
-    const objectPath = `push/${Date.now()}-${randomUUID()}.${ext}`;
-    const { error: uploadError } = await admin.storage.from('line-push').upload(objectPath, buffer, {
-      contentType,
-      upsert: false,
-    });
-
-    if (uploadError) {
-      return NextResponse.json(
-        {
-          error: uploadError.message,
-          hint: 'バケット line-push が存在し、公開URLが有効か確認してください。',
-        },
-        { status: 500 },
-      );
+    let publicUrl: string;
+    try {
+      publicUrl = await uploadImageToLineBucket(admin, imageDataUrl);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'アップロードに失敗しました';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
-
-    const { data: urlData } = admin.storage.from('line-push').getPublicUrl(objectPath);
-    const publicUrl = urlData.publicUrl;
 
     const pushRes = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',

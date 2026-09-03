@@ -46,7 +46,7 @@ interface Landmark {
   visibility?: number;
 }
 
-interface LevelAnchor {
+export interface LevelAnchor {
   /** レベル3.0に相当する逸脱量（cm） */
   level3: number;
   /** レベル4.0に相当する逸脱量（cm） */
@@ -68,6 +68,42 @@ const VERTICAL_ANCHORS: Record<VerticalNumericKey, LevelAnchor> = {
   耳: { level3: 4, level4: 7 },
   肘: { level3: 3, level4: 4 }, // プロトコルは肘の前後長さ比で明示的なcm値なし。近似値。
 };
+
+// AS（骨盤の捻れ）はプロトコル上は実測（触診）前提で自動計算はしていないが、
+// プロトコル文書に記載されたアンカー（レベル3≈4cm／レベル4≈7cm）は報告書生成での
+// 目安cm表示にのみ使う。
+const AS_ANCHOR: LevelAnchor = { level3: 4, level4: 7 };
+
+/** 10項目すべてのレベル⇔cmアンカー（報告書生成など、計算ロジック外から参照する用） */
+export const PROTOCOL_ITEM_ANCHORS: Record<string, LevelAnchor> = {
+  ...SYMMETRY_ANCHORS,
+  ...VERTICAL_ANCHORS,
+  AS: AS_ANCHOR,
+};
+
+/** 10項目の表示名（UI・報告書生成で共有する単一のソース） */
+export const PROTOCOL_ITEM_LABELS: Record<string, string> = {
+  顔: '顔',
+  肩上: '肩上',
+  軸: 'ウエスト',
+  AS: 'AS',
+  大転子: '大転子',
+  肘: '肘',
+  肩: '肩',
+  耳: '耳',
+  肩内旋左: '肩内旋左',
+  肩内旋右: '肩内旋右',
+};
+
+/** cmToLevel の逆関数。レベル値（1.0〜5.0）から目安のcm逸脱量を概算する。 */
+export function levelToApproxCm(level: number, anchor: LevelAnchor): number {
+  if (level <= 1) return 0;
+  if (level <= 3) {
+    return ((level - 1) / 2) * anchor.level3;
+  }
+  const slope = (anchor.level4 - anchor.level3) / 1.0;
+  return anchor.level3 + (level - 3) * slope;
+}
 
 const LM = {
   NOSE: 0,
