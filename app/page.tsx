@@ -18,23 +18,31 @@ type MetaPos = '上' | '中' | '下';
 type FaceType = '捻れ' | '傾き' | 'スライド';
 type ImageKey = 'front' | 'side' | 'back' | 'face';
 
+/** 7段階評価プロトコルのうち、左右セレクターを持つ4項目分のメタ情報 */
+interface ProtocolMeta {
+  顔_左右: MetaSide;
+  顔_種類: FaceType;
+  肩上_左右: MetaSide;
+  軸_左右: MetaSide;
+  AS_左右: MetaSide;
+}
+
 interface Session {
   date: string;
   amount: number;
   visitNumber: number;
+  /** 7段階評価（Before）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
   numericInspections: Record<string, number>;
-  metaInspections: {
-    顔_左右: MetaSide;
-    顔_種類: FaceType;
-    肩上_左右: MetaSide;
-    軸_左右: MetaSide;
-    AS_左右: MetaSide;
+  metaInspections: ProtocolMeta & {
     肩捻じれ: MetaSide;
     膝屈曲: { side: MetaSide; cm: number };
     膝屈曲内旋: { side: MetaSide; cm: number };
     首: { side: MetaSide; pos: MetaPos };
     腰: { side: MetaSide; pos: MetaPos };
   };
+  /** 7段階評価（After）。AS以外はAIの画像解析結果を書き込む読み取り専用の値。 */
+  numericInspectionsAfter: Record<string, number>;
+  metaInspectionsAfter: ProtocolMeta;
   totalSum: number;
   beautyScore: number;
   treatmentNote: string;
@@ -93,34 +101,42 @@ const imagePairs: { key: ImageKey; label: string }[] = [
   { key: 'face', label: '顔' },
 ];
 
+const createInitialNumericInspections = (): Record<string, number> => ({
+  顔: 3.5,
+  肩上: 3.5,
+  軸: 3.5,
+  AS: 3.5,
+  大転子: 3.5,
+  肘: 3.5,
+  肩: 3.5,
+  耳: 3.5,
+  肩内旋左: 3.5,
+  肩内旋右: 3.5,
+});
+
+const createInitialProtocolMeta = (): ProtocolMeta => ({
+  顔_左右: '左',
+  顔_種類: '捻れ',
+  肩上_左右: '左',
+  軸_左右: '左',
+  AS_左右: '左',
+});
+
 const createInitialSession = (): Session => ({
   date: new Date().toISOString().split('T')[0],
   amount: 0,
   visitNumber: 1,
-  numericInspections: {
-    顔: 3.5,
-    肩上: 3.5,
-    軸: 3.5,
-    AS: 3.5,
-    大転子: 3.5,
-    肘: 3.5,
-    肩: 3.5,
-    耳: 3.5,
-    肩内旋左: 3.5,
-    肩内旋右: 3.5,
-  },
+  numericInspections: createInitialNumericInspections(),
   metaInspections: {
-    顔_左右: '左',
-    顔_種類: '捻れ',
-    肩上_左右: '左',
-    軸_左右: '左',
-    AS_左右: '左',
+    ...createInitialProtocolMeta(),
     肩捻じれ: '左',
     膝屈曲: { side: '左', cm: 0 },
     膝屈曲内旋: { side: '左', cm: 0 },
     首: { side: '左', pos: '中' },
     腰: { side: '左', pos: '中' },
   },
+  numericInspectionsAfter: createInitialNumericInspections(),
+  metaInspectionsAfter: createInitialProtocolMeta(),
   totalSum: 0,
   beautyScore: 0,
   treatmentNote: '',
@@ -156,6 +172,17 @@ const side = (value: unknown): MetaSide => (value === '右' ? '右' : '左');
 const pos = (value: unknown): MetaPos => (value === '上' || value === '下' ? value : '中');
 const faceType = (value: unknown): FaceType => (value === '傾き' || value === 'スライド' ? value : '捻れ');
 
+function normalizeProtocolMeta(raw: unknown): ProtocolMeta {
+  const m = isRecord(raw) ? raw : {};
+  return {
+    顔_左右: side(m.顔_左右),
+    顔_種類: faceType(m.顔_種類),
+    肩上_左右: side(m.肩上_左右),
+    軸_左右: side(m.軸_左右),
+    AS_左右: side(m.AS_左右),
+  };
+}
+
 function normalizeMeta(raw: unknown): Session['metaInspections'] {
   const base = createInitialSession().metaInspections;
   const m = isRecord(raw) ? raw : {};
@@ -166,11 +193,7 @@ function normalizeMeta(raw: unknown): Session['metaInspections'] {
   const waistRaw = isRecord(m.腰) ? m.腰 : isRecord(m.waist) ? m.waist : {};
 
   return {
-    顔_左右: side(m.顔_左右),
-    顔_種類: faceType(m.顔_種類),
-    肩上_左右: side(m.肩上_左右),
-    軸_左右: side(m.軸_左右),
-    AS_左右: side(m.AS_左右),
+    ...normalizeProtocolMeta(raw),
     肩捻じれ: side(m.肩捻じれ),
     膝屈曲: {
       side: side((kneeFlexionRaw as Record<string, unknown>).side),
@@ -227,6 +250,11 @@ function normalizeSession(raw: unknown, visitNumberFallback = 1): Session {
   for (const key of numericKeys) {
     numericInspections[key] = num(n[key], base.numericInspections[key]);
   }
+  const nAfter = isRecord(r.numericInspectionsAfter) ? r.numericInspectionsAfter : {};
+  const numericInspectionsAfter = { ...base.numericInspectionsAfter };
+  for (const key of numericKeys) {
+    numericInspectionsAfter[key] = num(nAfter[key], base.numericInspectionsAfter[key]);
+  }
 
   return {
     ...base,
@@ -235,6 +263,8 @@ function normalizeSession(raw: unknown, visitNumberFallback = 1): Session {
     visitNumber: Math.max(1, Math.floor(num(r.visitNumber, visitNumberFallback))),
     numericInspections,
     metaInspections: normalizeMeta(r.metaInspections),
+    numericInspectionsAfter,
+    metaInspectionsAfter: normalizeProtocolMeta(r.metaInspectionsAfter),
     totalSum: num(r.totalSum, 0),
     beautyScore: num(r.beautyScore, 0),
     treatmentNote: str(r.treatmentNote),
@@ -317,10 +347,14 @@ function patientToRawRow(p: Patient): Record<string, unknown> {
   };
 }
 
-function scoreFromSession(session: Session) {
-  const sum = numericKeys.reduce((acc, key) => acc + num(session.numericInspections[key], 3.5), 0);
+function scoreFromInspections(numericInspections: Record<string, number>) {
+  const sum = numericKeys.reduce((acc, key) => acc + num(numericInspections[key], 3.5), 0);
   const score = ((45 - sum * 2) * 2) + 50;
   return { sum, score: Math.round(score * 10) / 10 };
+}
+
+function scoreFromSession(session: Session) {
+  return scoreFromInspections(session.numericInspections);
 }
 
 function loadImage(src: string) {
@@ -409,6 +443,7 @@ export default function Page() {
 
   const safeVisit = useMemo(() => normalizeSession(visitInfo), [visitInfo]);
   const score = useMemo(() => scoreFromSession(safeVisit), [safeVisit]);
+  const afterScore = useMemo(() => scoreFromInspections(safeVisit.numericInspectionsAfter), [safeVisit]);
 
   /** 過去受診を一覧表示（編集中の行は visitInfo を反映、新規受診は下に追記） */
   const visitArchiveRows = useMemo(() => {
@@ -835,10 +870,17 @@ export default function Page() {
       if (changedCount > 0) {
         setVisitInfo((prev) => {
           const prevSafe = normalizeSession(prev);
+          if (postureAnalysisSource === 'before') {
+            return {
+              ...prevSafe,
+              numericInspections: { ...prevSafe.numericInspections, ...numeric },
+              metaInspections: { ...prevSafe.metaInspections, ...meta },
+            };
+          }
           return {
             ...prevSafe,
-            numericInspections: { ...prevSafe.numericInspections, ...numeric },
-            metaInspections: { ...prevSafe.metaInspections, ...meta },
+            numericInspectionsAfter: { ...prevSafe.numericInspectionsAfter, ...numeric },
+            metaInspectionsAfter: { ...prevSafe.metaInspectionsAfter, ...meta },
           };
         });
       }
@@ -1796,83 +1838,89 @@ export default function Page() {
 
                 <div className="max-h-[min(72vh,700px)] overflow-y-auto overflow-x-hidden pr-10 pl-1 [-webkit-overflow-scrolling:touch]">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
-                    <div className="mb-3 flex items-center justify-between text-xl font-black text-slate-900">
-                      <span>顔</span>
-                      <span>{safeVisit.numericInspections['顔'].toFixed(1)}</span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <Selector
-                        label="左右"
-                        current={safeVisit.metaInspections.顔_左右}
-                        options={['左', '右']}
-                        onSelect={(value) =>
-                          setVisitInfo((prev) => ({ ...normalizeSession(prev), metaInspections: { ...normalizeSession(prev).metaInspections, 顔_左右: side(value) } }))
-                        }
-                      />
-                      <Selector
-                        label="種類"
-                        current={safeVisit.metaInspections.顔_種類}
-                        options={['捻れ', '傾き', 'スライド']}
-                        onSelect={(value) =>
-                          setVisitInfo((prev) => ({ ...normalizeSession(prev), metaInspections: { ...normalizeSession(prev).metaInspections, 顔_種類: faceType(value) } }))
-                        }
-                      />
-                    </div>
-                    <input
-                      type="range"
-                      min={2}
-                      max={5}
-                      step={0.5}
-                      value={safeVisit.numericInspections['顔']}
-                      onChange={(event) =>
-                        setVisitInfo((prev) => ({
-                          ...normalizeSession(prev),
-                          numericInspections: { ...normalizeSession(prev).numericInspections, 顔: Number(event.target.value) },
-                        }))
-                      }
-                      className="mt-4 w-full accent-slate-900"
-                    />
-                  </div>
-
-                  {numericKeys.filter((key) => key !== '顔').map((key) => (
-                    <div key={key} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
-                      <div className="mb-3 flex items-center justify-between text-xl font-black text-slate-900">
-                        <span>{numericKeyLabels[key]}</span>
-                        <span>{safeVisit.numericInspections[key].toFixed(1)}</span>
-                      </div>
-                      {['肩上', '軸', 'AS'].includes(key) ? (
+                  {(['before', 'after'] as const).map((timing) => {
+                    const numericField = timing === 'before' ? 'numericInspections' : 'numericInspectionsAfter';
+                    const metaField = timing === 'before' ? 'metaInspections' : 'metaInspectionsAfter';
+                    return (
+                      <div key={timing} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center justify-between text-xl font-black text-slate-900">
+                          <span>AS（{timing === 'before' ? 'Before' : 'After'}・手動入力）</span>
+                          <span>{safeVisit[numericField]['AS'].toFixed(1)}</span>
+                        </div>
                         <Selector
                           label="左右"
-                          current={safeVisit.metaInspections[`${key}_左右` as '肩上_左右' | '軸_左右' | 'AS_左右']}
+                          current={safeVisit[metaField].AS_左右}
                           options={['左', '右']}
                           onSelect={(value) =>
-                            setVisitInfo((prev) => ({
-                              ...normalizeSession(prev),
-                              metaInspections: {
-                                ...normalizeSession(prev).metaInspections,
-                                [`${key}_左右`]: side(value),
-                              } as Session['metaInspections'],
-                            }))
+                            setVisitInfo((prev) => {
+                              const prevSafe = normalizeSession(prev);
+                              return { ...prevSafe, [metaField]: { ...prevSafe[metaField], AS_左右: side(value) } };
+                            })
                           }
                         />
-                      ) : null}
-                      <input
-                        type="range"
-                        min={2}
-                        max={5}
-                        step={0.5}
-                        value={safeVisit.numericInspections[key]}
-                        onChange={(event) =>
-                          setVisitInfo((prev) => ({
-                            ...normalizeSession(prev),
-                            numericInspections: { ...normalizeSession(prev).numericInspections, [key]: Number(event.target.value) },
-                          }))
-                        }
-                        className="mt-4 w-full accent-slate-900"
-                      />
-                    </div>
-                  ))}
+                        <input
+                          type="range"
+                          min={2}
+                          max={5}
+                          step={0.5}
+                          value={safeVisit[numericField]['AS']}
+                          onChange={(event) =>
+                            setVisitInfo((prev) => {
+                              const prevSafe = normalizeSession(prev);
+                              return {
+                                ...prevSafe,
+                                [numericField]: { ...prevSafe[numericField], AS: Number(event.target.value) },
+                              };
+                            })
+                          }
+                          className="mt-4 w-full accent-slate-900"
+                        />
+                      </div>
+                    );
+                  })}
+
+                  <div className="sm:col-span-2 mt-4 overflow-x-auto rounded-2xl border-2 border-slate-300">
+                    <table className="w-full min-w-[420px] border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-900 text-white">
+                          <th className="px-3 py-2 text-left font-black">項目</th>
+                          <th className="px-3 py-2 text-right font-black">Before</th>
+                          <th className="px-3 py-2 text-right font-black">After</th>
+                          <th className="px-3 py-2 text-right font-black">差分</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {numericKeys.map((key) => {
+                          const before = safeVisit.numericInspections[key];
+                          const after = safeVisit.numericInspectionsAfter[key];
+                          const diff = after - before;
+                          const sideKey = (['顔', '肩上', '軸', 'AS'] as const).includes(key as '顔' | '肩上' | '軸' | 'AS')
+                            ? (`${key}_左右` as '顔_左右' | '肩上_左右' | '軸_左右' | 'AS_左右')
+                            : null;
+                          return (
+                            <tr key={key} className="border-t-2 border-slate-200 odd:bg-slate-50">
+                              <td className="px-3 py-2 font-black text-slate-900">{numericKeyLabels[key]}</td>
+                              <td className="px-3 py-2 text-right text-slate-900">
+                                {before.toFixed(1)}
+                                {sideKey ? <span className="text-slate-500">（{safeVisit.metaInspections[sideKey]}）</span> : null}
+                              </td>
+                              <td className="px-3 py-2 text-right text-slate-900">
+                                {after.toFixed(1)}
+                                {sideKey ? <span className="text-slate-500">（{safeVisit.metaInspectionsAfter[sideKey]}）</span> : null}
+                              </td>
+                              <td className="px-3 py-2 text-right font-black text-slate-900">
+                                {diff > 0 ? '+' : ''}
+                                {diff.toFixed(1)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="sm:col-span-2 mt-2 text-xs font-bold text-slate-400">
+                    AS以外は「画像から自動解析」ボタンで反映される値です（手動での変更はできません）。差分はAfter−Beforeです。
+                  </p>
 
                   {(['膝屈曲', '膝屈曲内旋'] as const).map((key) => (
                     <div key={key} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
@@ -1964,9 +2012,15 @@ export default function Page() {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border-4 border-purple-300 bg-purple-50 p-8 text-center">
-                  <p className="text-lg font-black text-slate-900">美の偏差値</p>
-                  <p className="text-7xl font-black text-slate-900">{score.score}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-3xl border-4 border-purple-300 bg-purple-50 p-6 text-center">
+                    <p className="text-sm font-black text-slate-900">美の偏差値（Before）</p>
+                    <p className="text-5xl font-black text-slate-900">{score.score}</p>
+                  </div>
+                  <div className="rounded-3xl border-4 border-purple-300 bg-purple-50 p-6 text-center">
+                    <p className="text-sm font-black text-slate-900">美の偏差値（After）</p>
+                    <p className="text-5xl font-black text-slate-900">{afterScore.score}</p>
+                  </div>
                 </div>
               </div>
               </div>
