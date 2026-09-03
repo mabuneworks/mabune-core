@@ -159,7 +159,7 @@ function toUiScore(level: number): number {
 }
 
 /**
- * 正面写真から「左右バランス」グループ（顔・肩上・軸＝ウエスト・肩内旋左右）を判定する。
+ * 正面写真から「左右バランス」グループ（顔・肩上・ウエスト・肩内旋左右）を判定する。
  * AS（骨盤の捻れ）はプロトコル上、触診による実測が前提のため対象外。
  *
  * @param imageLandmarks MediaPipe PoseLandmarker の `landmarks[0]`（画像正規化座標）
@@ -214,14 +214,14 @@ export function analyzeFrontPosture(imageLandmarks: Landmark[], worldLandmarks: 
     setSymmetryItem('肩上', diffCm, '肩上_左右');
   }
 
-  // --- 軸（プロトコル上は「ウエスト」）：左右の腰（股関節）の高さの差 ---
-  // ウエストのくびれ「深度」は骨格ランドマークだけでは測れないため、高さの差のみで近似。
+  // --- ウエスト（内部キー名は既存カルテ互換のため '軸' のまま）：左右の腰（股関節）の高さの差 ---
+  // くびれの「深度」は骨格ランドマークだけでは測れないため、高さの差のみで近似。
   {
     const heightL = along(up, hipMid, L_HIP);
     const heightR = along(up, hipMid, R_HIP);
     const diffCm = (heightR - heightL) * scale;
     setSymmetryItem('軸', diffCm, '軸_左右');
-    warnings.push('「軸」はプロトコル上「ウエスト」（左右のくびれの深さ・高さの差）に該当し、骨格点からは高さの差のみを近似計算しています。');
+    warnings.push('「ウエスト」は骨格点からくびれの深さではなく高さの差のみを近似計算しています。');
   }
 
   // --- 肩内旋左右：肘が肩よりどれだけ前方に出ているか（形状評価の簡易近似） ---

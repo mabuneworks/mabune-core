@@ -73,6 +73,19 @@ interface Patient {
 }
 
 const numericKeys = ['顔', '肩上', '軸', 'AS', '大転子', '肘', '肩', '耳', '肩内旋左', '肩内旋右'] as const;
+// 表示名のみ「ウエスト」に変更（データ上のキー名は既存カルテとの互換性のため「軸」のまま）。
+const numericKeyLabels: Record<(typeof numericKeys)[number], string> = {
+  顔: '顔',
+  肩上: '肩上',
+  軸: 'ウエスト',
+  AS: 'AS',
+  大転子: '大転子',
+  肘: '肘',
+  肩: '肩',
+  耳: '耳',
+  肩内旋左: '肩内旋左',
+  肩内旋右: '肩内旋右',
+};
 const imagePairs: { key: ImageKey; label: string }[] = [
   { key: 'front', label: '前面' },
   { key: 'back', label: '背面' },
@@ -792,7 +805,7 @@ export default function Page() {
         const image = await loadImage(frontSrc);
         const pose = await detectPoseFromImage(image);
         if (!pose) {
-          warnings.push('「前面」写真から人物を検出できませんでした（顔・肩上・軸・肩内旋左右は未反映）。');
+          warnings.push('「前面」写真から人物を検出できませんでした（顔・肩上・ウエスト・肩内旋左右は未反映）。');
         } else {
           const analysis = analyzeFrontPosture(pose.landmarks, pose.worldLandmarks);
           Object.assign(numeric, analysis.numeric);
@@ -801,7 +814,7 @@ export default function Page() {
           changedCount += Object.keys(analysis.numeric).length;
         }
       } else {
-        warnings.push('「前面」写真が未登録のため、顔・肩上・軸・肩内旋左右は解析していません。');
+        warnings.push('「前面」写真が未登録のため、顔・肩上・ウエスト・肩内旋左右は解析していません。');
       }
 
       if (sideSrc) {
@@ -1776,7 +1789,7 @@ export default function Page() {
                     <p className="whitespace-pre-line text-xs font-bold text-slate-600">{postureAnalysisMessage}</p>
                   ) : (
                     <p className="text-xs font-bold text-slate-400">
-                      「前後比較画像」で登録した前面写真（顔・肩上・軸・肩内旋左右）と側面写真（耳・肩・大転子・肘）から自動推定してスコアに反映します（参考値）。AS（骨盤）は実測前提のため対象外です。
+                      「前後比較画像」で登録した前面写真（顔・肩上・ウエスト・肩内旋左右）と側面写真（耳・肩・大転子・肘）から自動推定してスコアに反映します（参考値）。AS（骨盤）は実測前提のため対象外です。
                     </p>
                   )}
                 </div>
@@ -1825,7 +1838,7 @@ export default function Page() {
                   {numericKeys.filter((key) => key !== '顔').map((key) => (
                     <div key={key} className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
                       <div className="mb-3 flex items-center justify-between text-xl font-black text-slate-900">
-                        <span>{key}</span>
+                        <span>{numericKeyLabels[key]}</span>
                         <span>{safeVisit.numericInspections[key].toFixed(1)}</span>
                       </div>
                       {['肩上', '軸', 'AS'].includes(key) ? (
