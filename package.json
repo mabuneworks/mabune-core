@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@prisma/client": "^6.19.2",
     "@supabase/supabase-js": "^2.101.1",
     "next": "16.2.1",

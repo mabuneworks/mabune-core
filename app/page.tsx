@@ -10,6 +10,8 @@ import {
   writePatientRowsCache,
 } from '../lib/offline-cache';
 import { supabase, supabaseConfigError } from '../lib/supabase';
+import { detectPoseFromImage } from '../lib/pose-detector';
+import { analyzePostureFromLandmarks } from '../lib/posture-analysis';
 
 type MetaSide = '左' | '右';
 type MetaPos = '上' | '中' | '下';
@@ -371,6 +373,9 @@ export default function Page() {
   /** OFF のときはキャンバスがスクロールを阻害しない。ON のときのみ赤ペン。 */
   const [bodyMapDrawMode, setBodyMapDrawMode] = useState(false);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [isAnalyzingPosture, setIsAnalyzingPosture] = useState(false);
+  const [postureAnalysisSource, setPostureAnalysisSource] = useState<'before' | 'after'>('before');
+  const [postureAnalysisMessage, setPostureAnalysisMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [netOnline, setNetOnline] = useState(true);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -764,6 +769,42 @@ export default function Page() {
     };
     reader.readAsDataURL(file);
     event.target.value = '';
+  };
+
+  const analyzePostureFromPhoto = async () => {
+    const safe = normalizeSession(visitInfo);
+    const src = safe.images[postureAnalysisSource].front;
+    if (!src) {
+      setPostureAnalysisMessage(`${postureAnalysisSource === 'before' ? 'Before' : 'After'}の「前面」写真を先にアップロードしてください。`);
+      return;
+    }
+    setIsAnalyzingPosture(true);
+    setPostureAnalysisMessage('');
+    try {
+      const image = await loadImage(src);
+      const pose = await detectPoseFromImage(image);
+      if (!pose) {
+        setPostureAnalysisMessage('人物を検出できませんでした。全身が正面から写った写真でお試しください。');
+        return;
+      }
+      const analysis = analyzePostureFromLandmarks(pose.worldLandmarks);
+      setVisitInfo((prev) => {
+        const prevSafe = normalizeSession(prev);
+        return {
+          ...prevSafe,
+          numericInspections: { ...prevSafe.numericInspections, ...analysis.numeric },
+          metaInspections: { ...prevSafe.metaInspections, ...analysis.meta },
+        };
+      });
+      const changedCount = Object.keys(analysis.numeric).length;
+      const notice = `AIによる自動解析結果を反映しました（${changedCount}項目）。あくまで参考値です。内容を確認のうえ、必要に応じてスライダーで調整してください。`;
+      setPostureAnalysisMessage(analysis.warnings.length ? `${notice}\n${analysis.warnings.join('\n')}` : notice);
+    } catch (error) {
+      console.error(error);
+      setPostureAnalysisMessage('解析中にエラーが発生しました。時間を置いて再度お試しください。');
+    } finally {
+      setIsAnalyzingPosture(false);
+    }
   };
 
   const generateAllComparisons = async () => {
@@ -1677,6 +1718,34 @@ export default function Page() {
 
               <div className="order-5 space-y-4 xl:order-none xl:min-w-0">
                 <h3 className="text-2xl font-black text-slate-900">7段階評価</h3>
+
+                <div className="space-y-3 rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">
+                  <p className="text-sm font-black text-slate-900">画像から自動解析（AI）</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Selector
+                      label="解析する写真"
+                      current={postureAnalysisSource === 'before' ? 'Before前面' : 'After前面'}
+                      options={['Before前面', 'After前面']}
+                      onSelect={(value) => setPostureAnalysisSource(value === 'Before前面' ? 'before' : 'after')}
+                    />
+                    <button
+                      type="button"
+                      onClick={analyzePostureFromPhoto}
+                      disabled={isAnalyzingPosture}
+                      className="rounded-full bg-slate-900 px-6 py-3 text-sm text-white font-black disabled:opacity-50"
+                    >
+                      {isAnalyzingPosture ? '解析中...' : '自動解析を実行'}
+                    </button>
+                  </div>
+                  {postureAnalysisMessage ? (
+                    <p className="whitespace-pre-line text-xs font-bold text-slate-600">{postureAnalysisMessage}</p>
+                  ) : (
+                    <p className="text-xs font-bold text-slate-400">
+                      「前後比較画像」で登録した前面写真から、肩・骨盤・耳などの左右差を自動推定してスコアに反映します（参考値）。
+                    </p>
+                  )}
+                </div>
+
                 <div className="max-h-[min(72vh,700px)] overflow-y-auto overflow-x-hidden pr-10 pl-1 [-webkit-overflow-scrolling:touch]">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="rounded-3xl border-2 border-slate-300 bg-slate-50 p-4">

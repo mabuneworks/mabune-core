@@ -43,6 +43,7 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.startsWith('/_next/static') ||
     url.pathname.startsWith('/_next/image') ||
+    url.pathname.startsWith('/mediapipe/') ||
     url.pathname === '/manifest.json' ||
     url.pathname === '/icon.png'
   ) {
