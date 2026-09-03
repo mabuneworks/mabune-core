@@ -11,7 +11,7 @@ import {
 } from '../lib/offline-cache';
 import { supabase, supabaseConfigError } from '../lib/supabase';
 import { detectPoseFromImage } from '../lib/pose-detector';
-import { analyzePostureFromLandmarks } from '../lib/posture-analysis';
+import { analyzeFrontPosture, analyzeSidePosture } from '../lib/posture-analysis';
 
 type MetaSide = '左' | '右';
 type MetaPos = '上' | '中' | '下';
@@ -773,32 +773,67 @@ export default function Page() {
 
   const analyzePostureFromPhoto = async () => {
     const safe = normalizeSession(visitInfo);
-    const src = safe.images[postureAnalysisSource].front;
-    if (!src) {
-      setPostureAnalysisMessage(`${postureAnalysisSource === 'before' ? 'Before' : 'After'}の「前面」写真を先にアップロードしてください。`);
+    const frontSrc = safe.images[postureAnalysisSource].front;
+    const sideSrc = safe.images[postureAnalysisSource].side;
+    const timingLabel = postureAnalysisSource === 'before' ? 'Before' : 'After';
+    if (!frontSrc && !sideSrc) {
+      setPostureAnalysisMessage(`${timingLabel}の「前面」または「側面」写真を先にアップロードしてください。`);
       return;
     }
     setIsAnalyzingPosture(true);
     setPostureAnalysisMessage('');
     try {
-      const image = await loadImage(src);
-      const pose = await detectPoseFromImage(image);
-      if (!pose) {
-        setPostureAnalysisMessage('人物を検出できませんでした。全身が正面から写った写真でお試しください。');
-        return;
+      const numeric: Record<string, number> = {};
+      const meta: Record<string, unknown> = {};
+      const warnings: string[] = [];
+      let changedCount = 0;
+
+      if (frontSrc) {
+        const image = await loadImage(frontSrc);
+        const pose = await detectPoseFromImage(image);
+        if (!pose) {
+          warnings.push('「前面」写真から人物を検出できませんでした（顔・肩上・軸・肩内旋左右は未反映）。');
+        } else {
+          const analysis = analyzeFrontPosture(pose.landmarks, pose.worldLandmarks);
+          Object.assign(numeric, analysis.numeric);
+          Object.assign(meta, analysis.meta);
+          warnings.push(...analysis.warnings);
+          changedCount += Object.keys(analysis.numeric).length;
+        }
+      } else {
+        warnings.push('「前面」写真が未登録のため、顔・肩上・軸・肩内旋左右は解析していません。');
       }
-      const analysis = analyzePostureFromLandmarks(pose.worldLandmarks);
-      setVisitInfo((prev) => {
-        const prevSafe = normalizeSession(prev);
-        return {
-          ...prevSafe,
-          numericInspections: { ...prevSafe.numericInspections, ...analysis.numeric },
-          metaInspections: { ...prevSafe.metaInspections, ...analysis.meta },
-        };
-      });
-      const changedCount = Object.keys(analysis.numeric).length;
-      const notice = `AIによる自動解析結果を反映しました（${changedCount}項目）。あくまで参考値です。内容を確認のうえ、必要に応じてスライダーで調整してください。`;
-      setPostureAnalysisMessage(analysis.warnings.length ? `${notice}\n${analysis.warnings.join('\n')}` : notice);
+
+      if (sideSrc) {
+        const image = await loadImage(sideSrc);
+        const pose = await detectPoseFromImage(image);
+        if (!pose) {
+          warnings.push('「側面」写真から人物を検出できませんでした（耳・肩・大転子・肘は未反映）。');
+        } else {
+          const analysis = analyzeSidePosture(pose.landmarks, pose.worldLandmarks);
+          Object.assign(numeric, analysis.numeric);
+          warnings.push(...analysis.warnings);
+          changedCount += Object.keys(analysis.numeric).length;
+        }
+      } else {
+        warnings.push('「側面」写真が未登録のため、耳・肩・大転子・肘は解析していません。');
+      }
+
+      if (changedCount > 0) {
+        setVisitInfo((prev) => {
+          const prevSafe = normalizeSession(prev);
+          return {
+            ...prevSafe,
+            numericInspections: { ...prevSafe.numericInspections, ...numeric },
+            metaInspections: { ...prevSafe.metaInspections, ...meta },
+          };
+        });
+      }
+      const notice =
+        changedCount > 0
+          ? `AIによる自動解析結果を反映しました（${changedCount}項目）。AS（骨盤）は実測が前提のため対象外です。あくまで参考値ですので、内容を確認のうえ必要に応じてスライダーで調整してください。`
+          : '解析できる項目がありませんでした。';
+      setPostureAnalysisMessage(warnings.length ? `${notice}\n${warnings.join('\n')}` : notice);
     } catch (error) {
       console.error(error);
       setPostureAnalysisMessage('解析中にエラーが発生しました。時間を置いて再度お試しください。');
@@ -1723,10 +1758,10 @@ export default function Page() {
                   <p className="text-sm font-black text-slate-900">画像から自動解析（AI）</p>
                   <div className="flex flex-wrap items-center gap-3">
                     <Selector
-                      label="解析する写真"
-                      current={postureAnalysisSource === 'before' ? 'Before前面' : 'After前面'}
-                      options={['Before前面', 'After前面']}
-                      onSelect={(value) => setPostureAnalysisSource(value === 'Before前面' ? 'before' : 'after')}
+                      label="解析するタイミング"
+                      current={postureAnalysisSource === 'before' ? 'Before' : 'After'}
+                      options={['Before', 'After']}
+                      onSelect={(value) => setPostureAnalysisSource(value === 'Before' ? 'before' : 'after')}
                     />
                     <button
                       type="button"
@@ -1741,7 +1776,7 @@ export default function Page() {
                     <p className="whitespace-pre-line text-xs font-bold text-slate-600">{postureAnalysisMessage}</p>
                   ) : (
                     <p className="text-xs font-bold text-slate-400">
-                      「前後比較画像」で登録した前面写真から、肩・骨盤・耳などの左右差を自動推定してスコアに反映します（参考値）。
+                      「前後比較画像」で登録した前面写真（顔・肩上・軸・肩内旋左右）と側面写真（耳・肩・大転子・肘）から自動推定してスコアに反映します（参考値）。AS（骨盤）は実測前提のため対象外です。
                     </p>
                   )}
                 </div>
